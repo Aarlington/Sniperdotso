@@ -15,6 +15,7 @@ from pathlib import Path
 import websockets
 from websockets.exceptions import ConnectionClosed
 import httpx
+import base58
 from dotenv import load_dotenv
 
 # Load environment variables
