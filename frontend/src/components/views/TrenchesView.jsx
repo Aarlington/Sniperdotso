@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   TrendingUp, 
   Clock, 
@@ -9,38 +9,64 @@ import {
   LayoutGrid,
   List,
   ChevronDown,
-  Search
+  Search,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import TokenTable from '../tokens/TokenTable';
 import { mockTokens } from '../../data/mock';
-
-const tabs = [
-  { id: 'trenches', label: 'Trenches', icon: TrendingUp, tokens: mockTokens.trenches },
-  { id: 'almostBonded', label: 'Almost Bonded', icon: Clock, tokens: mockTokens.almostBonded },
-  { id: 'migrated', label: 'Migrated', icon: Rocket, tokens: mockTokens.migrated },
-];
+import { usePumpFun } from '../../contexts/PumpFunContext';
 
 const TrenchesView = () => {
   const [activeTab, setActiveTab] = useState('trenches');
   const [filter, setFilter] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState('table');
+  
+  const { tokens: liveTokens, isConnected, connectionStatus } = usePumpFun();
 
   const handleRefresh = () => {
     setIsRefreshing(true);
     setTimeout(() => setIsRefreshing(false), 1000);
   };
 
+  // Combine live tokens with mock data, prioritizing live tokens
+  const allTokens = useMemo(() => {
+    if (liveTokens.length > 0) {
+      return liveTokens;
+    }
+    return mockTokens.trenches;
+  }, [liveTokens]);
+
+  // Filter tokens by bonding progress for different tabs
+  const tokensByTab = useMemo(() => {
+    const trenches = allTokens.filter(t => (t.progress || 0) < 80);
+    const almostBonded = allTokens.filter(t => (t.progress || 0) >= 80 && (t.progress || 0) < 100);
+    const migrated = allTokens.filter(t => (t.progress || 0) >= 100 || t.isMigrated);
+    
+    return {
+      trenches: trenches.length > 0 ? trenches : mockTokens.trenches,
+      almostBonded: almostBonded.length > 0 ? almostBonded : mockTokens.almostBonded,
+      migrated: migrated.length > 0 ? migrated : mockTokens.migrated,
+    };
+  }, [allTokens]);
+
+  const tabs = [
+    { id: 'trenches', label: 'Trenches', icon: TrendingUp, tokens: tokensByTab.trenches },
+    { id: 'almostBonded', label: 'Almost Bonded', icon: Clock, tokens: tokensByTab.almostBonded },
+    { id: 'migrated', label: 'Migrated', icon: Rocket, tokens: tokensByTab.migrated },
+  ];
+
   const currentTokens = tabs.find(t => t.id === activeTab)?.tokens || [];
   
   const filteredTokens = currentTokens.filter(token => 
-    token.symbol.toLowerCase().includes(filter.toLowerCase()) ||
-    token.name.toLowerCase().includes(filter.toLowerCase()) ||
-    token.address.toLowerCase().includes(filter.toLowerCase())
+    token.symbol?.toLowerCase().includes(filter.toLowerCase()) ||
+    token.name?.toLowerCase().includes(filter.toLowerCase()) ||
+    token.address?.toLowerCase().includes(filter.toLowerCase()) ||
+    token.fullAddress?.toLowerCase().includes(filter.toLowerCase())
   );
 
   return (
