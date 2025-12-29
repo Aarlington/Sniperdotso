@@ -118,9 +118,9 @@ async def get_token_info(mint: str):
             raise HTTPException(status_code=404, detail="Token not found")
             
         # Calculate progress percentage
-        # Bonding curve completes at ~79 SOL
+        # Bonding curve completes at ~85 SOL
         real_sol = bonding_curve['realSolReserves'] / 1e9
-        progress = min(((79 - (79 - real_sol)) / 79) * 100, 100)
+        progress = min(((85 - (85 - real_sol)) / 85) * 100, 100)
         
         return {
             **bonding_curve,
@@ -131,6 +131,41 @@ async def get_token_info(mint: str):
     except Exception as e:
         logger.error(f"Error getting token info: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@api_router.get("/sniper/metadata/{mint}")
+async def get_token_metadata(mint: str):
+    """Fetch token metadata from Pump.fun API"""
+    try:
+        async with httpx.AsyncClient() as client:
+            # Try Pump.fun API first
+            response = await client.get(
+                f"https://frontend-api.pump.fun/coins/{mint}",
+                timeout=5.0
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                return {
+                    'mint': mint,
+                    'name': data.get('name', ''),
+                    'symbol': data.get('symbol', ''),
+                    'description': data.get('description', ''),
+                    'image': data.get('image_uri', ''),
+                    'twitter': data.get('twitter', ''),
+                    'telegram': data.get('telegram', ''),
+                    'website': data.get('website', ''),
+                    'creator': data.get('creator', ''),
+                    'marketCap': data.get('usd_market_cap', 0),
+                    'complete': data.get('complete', False),
+                    'kingOfTheHillTimestamp': data.get('king_of_the_hill_timestamp'),
+                }
+            
+            return {'mint': mint, 'error': 'Token not found'}
+            
+    except Exception as e:
+        logger.error(f"Error fetching metadata for {mint}: {e}")
+        return {'mint': mint, 'error': str(e)}
 
 
 # WebSocket for real-time Pump.fun events
