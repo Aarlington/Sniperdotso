@@ -1,5 +1,6 @@
 // craco.config.js
 const path = require("path");
+const webpack = require("webpack");
 require("dotenv").config();
 
 // Check if we're in development/preview mode (not production build)
@@ -47,6 +48,14 @@ const webpackConfig = {
       '@': path.resolve(__dirname, 'src'),
     },
     configure: (webpackConfig) => {
+      // Add polyfills for Solana web3.js
+      webpackConfig.resolve.fallback = {
+        ...webpackConfig.resolve.fallback,
+        buffer: require.resolve('buffer/'),
+        stream: require.resolve('stream-browserify'),
+        crypto: require.resolve('crypto-browserify'),
+        process: require.resolve('process/browser'),
+      };
 
       // Add ignored patterns to reduce watched directories
         webpackConfig.watchOptions = {
@@ -60,6 +69,14 @@ const webpackConfig = {
             '**/public/**',
         ],
       };
+
+      // Add plugins for polyfills
+      webpackConfig.plugins.push(
+        new webpack.ProvidePlugin({
+          Buffer: ['buffer', 'Buffer'],
+          process: 'process/browser',
+        })
+      );
 
       // Add health check plugin to webpack if enabled
       if (config.enableHealthCheck && healthPluginInstance) {
