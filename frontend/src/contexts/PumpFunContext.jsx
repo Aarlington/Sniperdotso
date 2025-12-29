@@ -10,6 +10,10 @@ const metadataCache = new Map();
 // Track tokens we've already tried to fetch metadata for
 const metadataFetched = new Set();
 
+// Live SOL price
+let currentSolPrice = 180; // Default fallback
+let lastPriceFetch = 0;
+
 export const usePumpFun = () => {
   const context = useContext(PumpFunContext);
   if (!context) {
@@ -17,6 +21,31 @@ export const usePumpFun = () => {
   }
   return context;
 };
+
+// Fetch live SOL price from CoinGecko
+async function fetchSolPrice() {
+  const now = Date.now();
+  // Only fetch every 30 seconds
+  if (now - lastPriceFetch < 30000) {
+    return currentSolPrice;
+  }
+  
+  try {
+    const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
+    if (response.ok) {
+      const data = await response.json();
+      currentSolPrice = data.solana?.usd || 180;
+      lastPriceFetch = now;
+      console.log('Updated SOL price:', currentSolPrice);
+    }
+  } catch (error) {
+    console.error('Error fetching SOL price:', error);
+  }
+  return currentSolPrice;
+}
+
+// Initialize SOL price on load
+fetchSolPrice();
 
 // Fetch token metadata from Helius DAS API with rate limiting
 let lastMetadataFetch = 0;
