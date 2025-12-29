@@ -135,30 +135,39 @@ async def get_token_info(mint: str):
 
 @api_router.get("/sniper/metadata/{mint}")
 async def get_token_metadata(mint: str):
-    """Fetch token metadata from Pump.fun API"""
+    """Fetch token metadata using Helius DAS API"""
+    import os
+    HELIUS_RPC_URL = os.environ.get('HELIUS_RPC_URL')
+    
     try:
         async with httpx.AsyncClient() as client:
-            # Try Pump.fun API first
-            response = await client.get(
-                f"https://frontend-api.pump.fun/coins/{mint}",
+            # Use Helius DAS API to get asset info
+            response = await client.post(
+                HELIUS_RPC_URL,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": "metadata",
+                    "method": "getAsset",
+                    "params": {"id": mint}
+                },
                 timeout=5.0
             )
             
             if response.status_code == 200:
                 data = response.json()
+                result = data.get('result', {})
+                content = result.get('content', {})
+                metadata = content.get('metadata', {})
+                links = content.get('links', {})
+                
                 return {
                     'mint': mint,
-                    'name': data.get('name', ''),
-                    'symbol': data.get('symbol', ''),
-                    'description': data.get('description', ''),
-                    'image': data.get('image_uri', ''),
-                    'twitter': data.get('twitter', ''),
-                    'telegram': data.get('telegram', ''),
-                    'website': data.get('website', ''),
-                    'creator': data.get('creator', ''),
-                    'marketCap': data.get('usd_market_cap', 0),
-                    'complete': data.get('complete', False),
-                    'kingOfTheHillTimestamp': data.get('king_of_the_hill_timestamp'),
+                    'name': metadata.get('name', ''),
+                    'symbol': metadata.get('symbol', ''),
+                    'description': metadata.get('description', ''),
+                    'image': content.get('files', [{}])[0].get('uri', '') if content.get('files') else links.get('image', ''),
+                    'twitter': '',
+                    'website': links.get('external_url', ''),
                 }
             
             return {'mint': mint, 'error': 'Token not found'}
