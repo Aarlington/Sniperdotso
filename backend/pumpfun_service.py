@@ -132,8 +132,8 @@ class PumpFunEventService:
         try:
             offset = 8  # Skip discriminator
             
-            # Read mint (32 bytes)
-            mint = base64.b64encode(data[offset:offset+32]).decode('utf-8')
+            # Read mint (32 bytes) - convert to base58
+            mint = base58.b58encode(data[offset:offset+32]).decode('utf-8')
             offset += 32
             
             # Read solAmount (u64)
@@ -149,7 +149,7 @@ class PumpFunEventService:
             offset += 1
             
             # Read user (32 bytes)
-            user = base64.b64encode(data[offset:offset+32]).decode('utf-8')
+            user = base58.b58encode(data[offset:offset+32]).decode('utf-8')
             offset += 32
             
             # Read timestamp (i64)
