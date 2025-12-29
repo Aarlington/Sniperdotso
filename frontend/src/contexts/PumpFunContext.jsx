@@ -239,12 +239,14 @@ export const PumpFunProvider = ({ children }) => {
 
   // Process bonding curve completion event
   const handleCompleteEvent = useCallback((event) => {
+    console.log('🎉 Token graduated:', event.mint);
     setTokens(prev => prev.map(token => {
       if (token.fullAddress === event.mint) {
         return {
           ...token,
           progress: 100,
           isMigrated: true,
+          graduatedAt: Date.now(),
         };
       }
       return token;
