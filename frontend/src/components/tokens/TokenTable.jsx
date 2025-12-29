@@ -172,7 +172,7 @@ const TokenTable = ({ tokens, title, showProgress = true }) => {
             <div className="col-span-1 flex items-center justify-center">
               <Button
                 size="sm"
-                className="px-3 py-1 bg-green-500/20 hover:bg-green-500/30 text-green-400 text-xs font-medium rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+                className="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-black text-xs font-semibold rounded-md transition-all hover:scale-105"
                 onClick={(e) => {
                   e.stopPropagation();
                 }}
