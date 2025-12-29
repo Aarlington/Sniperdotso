@@ -7,6 +7,7 @@ import base64
 import logging
 from typing import Optional, Dict, Any
 import struct
+from pathlib import Path
 
 import httpx
 from solders.pubkey import Pubkey
@@ -16,6 +17,11 @@ from solders.system_program import ID as SYS_PROGRAM_ID
 from solders.instruction import Instruction, AccountMeta
 from solders.hash import Hash
 from solders.message import Message
+from dotenv import load_dotenv
+
+# Load environment variables
+ROOT_DIR = Path(__file__).parent
+load_dotenv(ROOT_DIR / '.env')
 
 logger = logging.getLogger(__name__)
 
