@@ -56,28 +56,42 @@ const TokenTable = ({ tokens, title, showProgress = true }) => {
             {/* Token Info */}
             <div className="col-span-3 flex items-center gap-3">
               <div className="relative">
-                <img
-                  src={token.logo}
-                  alt={token.symbol}
-                  className="w-10 h-10 rounded-full object-cover bg-[#1f1f23]"
-                  onError={(e) => {
-                    e.target.src = `https://ui-avatars.com/api/?name=${token.symbol}&background=1f1f23&color=fff`;
-                  }}
-                />
-                {showProgress && (
-                  <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#0d0d0f] border border-[#1f1f23] flex items-center justify-center">
-                    <span className="text-[8px] font-bold text-green-400">{token.progress}%</span>
+                {token.logo ? (
+                  <img
+                    src={token.logo}
+                    alt={token.symbol}
+                    className="w-10 h-10 rounded-full object-cover bg-[#1f1f23]"
+                    onError={(e) => {
+                      e.target.src = `https://ui-avatars.com/api/?name=${token.symbol}&background=1f1f23&color=fff&size=40`;
+                    }}
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500/30 to-pink-500/30 flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">{token.symbol?.slice(0, 2) || '??'}</span>
+                  </div>
+                )}
+                {showProgress && token.progress !== undefined && (
+                  <div 
+                    className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#0d0d0f] border-2 flex items-center justify-center"
+                    style={{ borderColor: token.progress >= 80 ? '#22c55e' : token.progress >= 50 ? '#eab308' : '#6b7280' }}
+                  >
+                    <span className="text-[8px] font-bold" style={{ color: token.progress >= 80 ? '#22c55e' : token.progress >= 50 ? '#eab308' : '#9ca3af' }}>
+                      {Math.round(token.progress)}%
+                    </span>
                   </div>
                 )}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-white font-semibold text-sm truncate">{token.symbol}</span>
+                  <span className="text-white font-semibold text-sm truncate">{token.symbol || 'Unknown'}</span>
                   {token.isLive && (
                     <span className="px-1.5 py-0.5 text-[10px] font-bold bg-red-500/20 text-red-400 rounded animate-pulse">
                       LIVE
                     </span>
                   )}
+                  <span className="px-1.5 py-0.5 text-[10px] font-medium bg-purple-500/20 text-purple-400 rounded">
+                    PUMP
+                  </span>
                 </div>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <TooltipProvider>
@@ -86,7 +100,7 @@ const TokenTable = ({ tokens, title, showProgress = true }) => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            copyAddress(token.address);
+                            copyAddress(token.fullAddress || token.address);
                           }}
                           className="text-gray-500 hover:text-gray-300 text-xs truncate max-w-[80px]"
                         >
@@ -94,7 +108,7 @@ const TokenTable = ({ tokens, title, showProgress = true }) => {
                         </button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Click to copy address</p>
+                        <p>Click to copy: {token.fullAddress || token.address}</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -110,9 +124,12 @@ const TokenTable = ({ tokens, title, showProgress = true }) => {
                     </a>
                   )}
                   {token.hasWebsite && (
-                    <Globe className="w-3 h-3 text-gray-500 hover:text-gray-300" />
+                    <Globe className="w-3 h-3 text-gray-500 hover:text-gray-300 cursor-pointer" />
                   )}
                 </div>
+                {token.name && token.name !== `Token ${token.fullAddress?.slice(0, 8)}` && (
+                  <p className="text-gray-500 text-[10px] truncate mt-0.5">{token.name}</p>
+                )}
               </div>
             </div>
 
