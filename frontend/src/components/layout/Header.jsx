@@ -25,7 +25,7 @@ import { usePumpFun } from '../../contexts/PumpFunContext';
 const Header = ({ selectedChain, setSelectedChain, toggleSidebar }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const { isConnected: wsConnected, connectionStatus } = usePumpFun();
+  const { isConnected: wsConnected, connectionStatus, solPrice } = usePumpFun();
 
   const currentChain = chains.find(c => c.id === selectedChain) || chains[0];
 
