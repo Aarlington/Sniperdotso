@@ -193,15 +193,15 @@ class PumpFunEventService:
             offset = 8  # Skip discriminator
             
             # Read user (32 bytes)
-            user = base64.b64encode(data[offset:offset+32]).decode('utf-8')
+            user = base58.b58encode(data[offset:offset+32]).decode('utf-8')
             offset += 32
             
             # Read mint (32 bytes)
-            mint = base64.b64encode(data[offset:offset+32]).decode('utf-8')
+            mint = base58.b58encode(data[offset:offset+32]).decode('utf-8')
             offset += 32
             
             # Read bondingCurve (32 bytes)
-            bonding_curve = base64.b64encode(data[offset:offset+32]).decode('utf-8')
+            bonding_curve = base58.b58encode(data[offset:offset+32]).decode('utf-8')
             offset += 32
             
             # Read timestamp (i64)
