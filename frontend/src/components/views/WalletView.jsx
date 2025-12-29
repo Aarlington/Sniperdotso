@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   Wallet, 
   Copy, 
@@ -12,18 +12,21 @@ import {
   EyeOff,
   Plus
 } from 'lucide-react';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
+import { useWalletState } from '../../contexts/WalletContext';
 import { mockHoldings, mockWatchlist } from '../../data/mock';
 
-const WalletView = ({ isConnected = false }) => {
+const WalletView = () => {
   const [hideBalance, setHideBalance] = useState(false);
   const [activeTab, setActiveTab] = useState('holdings');
+  const { connected } = useWallet();
+  const { setVisible } = useWalletModal();
+  const { balance, shortAddress, walletAddress } = useWalletState();
 
-  const walletBalance = '12.45';
-  const usdValue = '$2,218.45';
-
-  if (!isConnected) {
+  if (!connected) {
     return (
       <div className="flex flex-col items-center justify-center py-20 space-y-6">
         <div className="w-20 h-20 rounded-full bg-[#1f1f23] flex items-center justify-center">
@@ -35,7 +38,10 @@ const WalletView = ({ isConnected = false }) => {
             Connect your Solana wallet to view your holdings, track PnL, and start trading.
           </p>
         </div>
-        <Button className="px-6 py-3 bg-green-500 hover:bg-green-600 text-black font-medium">
+        <Button 
+          onClick={() => setVisible(true)}
+          className="px-6 py-3 bg-green-500 hover:bg-green-600 text-black font-medium"
+        >
           <Wallet className="w-4 h-4 mr-2" />
           Connect Wallet
         </Button>
