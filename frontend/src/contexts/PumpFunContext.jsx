@@ -212,6 +212,7 @@ export const PumpFunProvider = ({ children }) => {
         });
       } else {
         // Create new token from trade event
+        const SOL_PRICE_USD = 180;
         const newToken = {
           id: event.mint,
           address: `${event.mint.slice(0, 4)}...${event.mint.slice(-4)}`,
@@ -226,12 +227,14 @@ export const PumpFunProvider = ({ children }) => {
           hasWebsite: false,
           bondingCurve: null,
           creator: event.user,
-          volume: formatVolume(trade.solAmount),
-          marketCap: formatMarketCap(marketCap),
-          liquidity: trade.realSolReserves.toFixed(3),
-          netFlow: trade.isBuy ? `+$${trade.solAmount.toFixed(2)}` : `-$${trade.solAmount.toFixed(2)}`,
+          volume: formatVolumeUsd(tradeVolumeUsd),
+          totalVolumeUsd: tradeVolumeUsd,
+          marketCap: formatMarketCapUsd(marketCapUsd),
+          liquidity: trade.realSolReserves.toFixed(2),
+          netFlow: trade.isBuy ? `+$${tradeVolumeUsd.toFixed(0)}` : `-$${tradeVolumeUsd.toFixed(0)}`,
           txCount: 1,
           holders: 1,
+          uniqueTraders: [event.user],
           topHolders: '0%',
           change5m: '0%',
           change1h: '0%',
@@ -240,9 +243,10 @@ export const PumpFunProvider = ({ children }) => {
           isGreen: trade.isBuy,
           progress: Math.min(Math.max(progress, 0), 100),
           platform: 'pump',
-          priceHistory: [{ time: trade.timestamp, price: price, volume: trade.solAmount }],
+          priceHistory: [{ time: trade.timestamp, price: priceInSol, priceUsd: priceInUsd, volume: tradeVolumeUsd }],
           trades: [trade],
-          lastPrice: price,
+          lastPrice: priceInSol,
+          lastPriceUsd: priceInUsd,
           lastTrade: trade,
           metadataLoading: true,
         };
