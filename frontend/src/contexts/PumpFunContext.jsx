@@ -139,9 +139,11 @@ export const PumpFunProvider = ({ children }) => {
       wsRef.current.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          console.log('Received WS message:', data.type, data.data?.mint?.slice(0, 10) || '');
           
           switch (data.type) {
             case 'createEvent':
+              console.log('New token created:', data.data.symbol, data.data.mint);
               handleCreateEvent(data.data);
               break;
             case 'tradeEvent':
@@ -152,6 +154,9 @@ export const PumpFunProvider = ({ children }) => {
               break;
             case 'ping':
               wsRef.current?.send(JSON.stringify({ type: 'pong' }));
+              break;
+            case 'connected':
+              console.log('Connection confirmed by server');
               break;
             default:
               console.log('Unknown event type:', data.type);
