@@ -54,7 +54,14 @@ const webpackConfig = {
         buffer: require.resolve('buffer/'),
         stream: require.resolve('stream-browserify'),
         crypto: require.resolve('crypto-browserify'),
-        process: require.resolve('process/browser'),
+        process: require.resolve('process/browser.js'),
+      };
+
+      // Fix for ESM modules requiring process/browser
+      webpackConfig.resolve.alias = {
+        ...webpackConfig.resolve.alias,
+        '@': path.resolve(__dirname, 'src'),
+        'process/browser': require.resolve('process/browser.js'),
       };
 
       // Add ignored patterns to reduce watched directories
