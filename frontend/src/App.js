@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { SolanaWalletProvider } from './contexts/WalletContext';
+import { PumpFunProvider } from './contexts/PumpFunContext';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 import TrenchesView from './components/views/TrenchesView';
@@ -9,11 +11,10 @@ import SniperPanel from './components/sniper/SniperPanel';
 import { cn } from './lib/utils';
 import './App.css';
 
-function App() {
+function AppContent() {
   const [activeTab, setActiveTab] = useState('trenches');
   const [selectedChain, setSelectedChain] = useState('sol');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [isWalletConnected, setIsWalletConnected] = useState(false);
 
   const toggleSidebar = () => setSidebarCollapsed(!sidebarCollapsed);
 
@@ -22,7 +23,7 @@ function App() {
       case 'trenches':
         return <TrenchesView />;
       case 'wallet':
-        return <WalletView isConnected={isWalletConnected} />;
+        return <WalletView />;
       case 'alerts':
         return <AlertsView />;
       case 'settings':
@@ -95,6 +96,16 @@ function App() {
         </main>
       </div>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <SolanaWalletProvider>
+      <PumpFunProvider>
+        <AppContent />
+      </PumpFunProvider>
+    </SolanaWalletProvider>
   );
 }
 
