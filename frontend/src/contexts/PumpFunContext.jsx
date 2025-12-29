@@ -317,14 +317,31 @@ export const PumpFunProvider = ({ children }) => {
     return () => disconnect();
   }, [connect, disconnect]);
 
-  // Update token ages periodically
+  // Update token ages periodically - use ref to avoid race conditions
+  const tokensRef = useRef(tokens);
+  tokensRef.current = tokens;
+  
   useEffect(() => {
     const interval = setInterval(() => {
-      setTokens(prev => prev.map(token => ({
-        ...token,
-        age: formatAge(Date.now() - token.createdAt),
-      })));
-    }, 1000);
+      const now = Date.now();
+      setTokens(prev => {
+        // Only update if we have tokens
+        if (prev.length === 0) return prev;
+        
+        // Check if any age actually changed (avoid unnecessary updates)
+        let hasChanges = false;
+        const updated = prev.map(token => {
+          const newAge = formatAge(now - token.createdAt);
+          if (newAge !== token.age) {
+            hasChanges = true;
+            return { ...token, age: newAge };
+          }
+          return token;
+        });
+        
+        return hasChanges ? updated : prev;
+      });
+    }, 2000); // Update every 2 seconds instead of 1 to reduce load
 
     return () => clearInterval(interval);
   }, []);
