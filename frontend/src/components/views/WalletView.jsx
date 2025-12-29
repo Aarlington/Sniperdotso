@@ -58,7 +58,7 @@ const WalletView = () => {
             <p className="text-gray-500 text-sm mb-1">Total Balance</p>
             <div className="flex items-center gap-3">
               <h2 className="text-3xl font-bold text-white">
-                {hideBalance ? '••••••' : `${walletBalance} SOL`}
+                {hideBalance ? '••••••' : `${balance !== null ? balance.toFixed(4) : '...'} SOL`}
               </h2>
               <button
                 onClick={() => setHideBalance(!hideBalance)}
@@ -72,14 +72,19 @@ const WalletView = () => {
               </button>
             </div>
             <p className="text-gray-400 text-sm mt-1">
-              {hideBalance ? '••••••' : usdValue}
+              {shortAddress}
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" className="p-2 bg-white/5 hover:bg-white/10">
               <RefreshCw className="w-4 h-4 text-gray-400" />
             </Button>
-            <Button variant="ghost" size="sm" className="p-2 bg-white/5 hover:bg-white/10">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="p-2 bg-white/5 hover:bg-white/10"
+              onClick={() => window.open(`https://solscan.io/account/${walletAddress}`, '_blank')}
+            >
               <ExternalLink className="w-4 h-4 text-gray-400" />
             </Button>
           </div>
