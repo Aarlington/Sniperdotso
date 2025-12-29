@@ -7,6 +7,8 @@ const PumpFunContext = createContext(null);
 
 // Cache for token metadata
 const metadataCache = new Map();
+// Track tokens we've already tried to fetch metadata for
+const metadataFetched = new Set();
 
 export const usePumpFun = () => {
   const context = useContext(PumpFunContext);
@@ -16,17 +18,34 @@ export const usePumpFun = () => {
   return context;
 };
 
-// Fetch token metadata from Pump.fun API
+// Fetch token metadata from Helius DAS API with rate limiting
+let lastMetadataFetch = 0;
+const METADATA_FETCH_DELAY = 100; // ms between fetches
+
 async function fetchTokenMetadata(mint) {
   if (metadataCache.has(mint)) {
     return metadataCache.get(mint);
   }
   
+  if (metadataFetched.has(mint)) {
+    return null; // Already tried and failed
+  }
+  
+  // Rate limit
+  const now = Date.now();
+  const timeSinceLastFetch = now - lastMetadataFetch;
+  if (timeSinceLastFetch < METADATA_FETCH_DELAY) {
+    await new Promise(r => setTimeout(r, METADATA_FETCH_DELAY - timeSinceLastFetch));
+  }
+  lastMetadataFetch = Date.now();
+  
+  metadataFetched.add(mint);
+  
   try {
     const response = await fetch(`${BACKEND_URL}/api/sniper/metadata/${mint}`);
     if (response.ok) {
       const data = await response.json();
-      if (!data.error) {
+      if (!data.error && (data.name || data.symbol)) {
         metadataCache.set(mint, data);
         return data;
       }
