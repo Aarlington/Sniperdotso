@@ -166,22 +166,32 @@ export const PumpFunProvider = ({ children }) => {
       realTokenReserves: Number(event.realTokenReserves) / 1e6,
     };
 
+    // Get live SOL price (updates every 30s)
+    const SOL_PRICE_USD = currentSolPrice;
+    
     // Calculate price (in SOL per token)
+    // Using virtual reserves for accurate bonding curve price
     const priceInSol = trade.virtualSolReserves / trade.virtualTokenReserves;
-    const SOL_PRICE_USD = 180; // Approximate SOL price - could fetch real price
     const priceInUsd = priceInSol * SOL_PRICE_USD;
     
-    // Market cap = price * total supply (1 billion tokens)
-    const marketCapUsd = priceInUsd * 1_000_000_000;
+    // Market cap = price * circulating supply
+    // For bonding curve: circulating = 1B - virtualTokenReserves (tokens sold from curve)
+    const circulatingSupply = 1_000_000_000 - trade.virtualTokenReserves;
+    const marketCapUsd = priceInSol * circulatingSupply * SOL_PRICE_USD;
+    
+    // Fully diluted market cap (total supply * price)
+    const fdvUsd = priceInSol * 1_000_000_000 * SOL_PRICE_USD;
     
     // Volume in USD
     const tradeVolumeUsd = trade.solAmount * SOL_PRICE_USD;
     
-    // Progress to bonding completion (needs ~85 SOL)
-    const progress = Math.min(((85 - trade.realSolReserves) / 85) * 100, 100);
+    // Progress to bonding completion
+    // Bonding curve starts with ~30 virtual SOL and needs to accumulate ~85 real SOL
+    // Progress is based on how much real SOL is in the curve
+    const progress = Math.min((trade.realSolReserves / 85) * 100, 100);
     
-    // Check if token is graduating (progress >= 99%)
-    const isGraduating = progress >= 99;
+    // Check if token is graduating (progress >= 99% or realSolReserves >= 84)
+    const isGraduating = progress >= 99 || trade.realSolReserves >= 84;
 
     // Update token with new trade data OR create new token if it doesn't exist
     setTokens(prev => {
