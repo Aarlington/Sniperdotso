@@ -77,31 +77,76 @@ export const PumpFunProvider = ({ children }) => {
     // Calculate price and market cap
     const price = trade.virtualSolReserves / trade.virtualTokenReserves;
     const marketCap = price * 1000000000; // Total supply is 1B
-    const progress = ((79 - trade.realSolReserves) / 79) * 100; // Bonding curve needs ~79 SOL to complete
+    const progress = Math.min(((85 - trade.realSolReserves) / 85) * 100, 100); // Bonding curve needs ~85 SOL to complete
 
-    // Update token with new trade data
-    setTokens(prev => prev.map(token => {
-      if (token.fullAddress === event.mint) {
-        const newPricePoint = {
-          time: trade.timestamp,
-          price: price,
-          volume: trade.solAmount,
-        };
-        
-        return {
-          ...token,
+    // Update token with new trade data OR create new token if it doesn't exist
+    setTokens(prev => {
+      const existingToken = prev.find(t => t.fullAddress === event.mint);
+      
+      if (existingToken) {
+        // Update existing token
+        return prev.map(token => {
+          if (token.fullAddress === event.mint) {
+            const newPricePoint = {
+              time: trade.timestamp,
+              price: price,
+              volume: trade.solAmount,
+            };
+            
+            return {
+              ...token,
+              marketCap: formatMarketCap(marketCap),
+              volume: formatVolume(trade.solAmount + parseVolume(token.volume)),
+              txCount: token.txCount + 1,
+              progress: Math.min(Math.max(progress, 0), 100),
+              priceHistory: [...token.priceHistory, newPricePoint].slice(-100),
+              trades: [trade, ...token.trades].slice(0, 50),
+              lastPrice: price,
+              lastTrade: trade,
+            };
+          }
+          return token;
+        });
+      } else {
+        // Create new token from trade event
+        const newToken = {
+          id: event.mint,
+          address: `${event.mint.slice(0, 4)}...${event.mint.slice(-4)}`,
+          fullAddress: event.mint,
+          symbol: event.mint.slice(0, 6).toUpperCase(),
+          name: `Token ${event.mint.slice(0, 8)}`,
+          logo: null,
+          age: '0s',
+          createdAt: Date.now(),
+          twitter: null,
+          hasTwitter: false,
+          hasWebsite: false,
+          bondingCurve: null,
+          creator: event.user,
+          volume: formatVolume(trade.solAmount),
           marketCap: formatMarketCap(marketCap),
-          volume: formatVolume(trade.solAmount + parseVolume(token.volume)),
-          txCount: token.txCount + 1,
+          liquidity: trade.realSolReserves.toFixed(3),
+          netFlow: trade.isBuy ? `+$${trade.solAmount.toFixed(2)}` : `-$${trade.solAmount.toFixed(2)}`,
+          txCount: 1,
+          holders: 1,
+          topHolders: '0%',
+          change5m: '0%',
+          change1h: '0%',
+          change6h: '0%',
+          change24h: '0%',
+          isGreen: trade.isBuy,
           progress: Math.min(Math.max(progress, 0), 100),
-          priceHistory: [...token.priceHistory, newPricePoint].slice(-100),
-          trades: [trade, ...token.trades].slice(0, 50),
+          platform: 'pump',
+          priceHistory: [{ time: trade.timestamp, price: price, volume: trade.solAmount }],
+          trades: [trade],
           lastPrice: price,
           lastTrade: trade,
         };
+        
+        console.log('Created token from trade:', newToken.fullAddress.slice(0, 10));
+        return [newToken, ...prev].slice(0, 100);
       }
-      return token;
-    }));
+    });
 
     // Add to recent trades
     setRecentTrades(prev => [trade, ...prev].slice(0, 50));
