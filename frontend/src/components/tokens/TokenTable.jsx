@@ -1,15 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   ExternalLink, 
   Twitter, 
   Globe, 
   Copy, 
-  MoreHorizontal,
   TrendingUp,
-  TrendingDown,
   Zap,
-  Shield,
-  AlertTriangle
+  X,
+  Loader2,
+  Check,
+  AlertCircle
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
@@ -19,15 +19,108 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '../ui/tooltip';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+import { useWalletModal } from '@solana/wallet-adapter-react-ui';
+import { Transaction } from '@solana/web3.js';
+
+const QUICK_BUY_AMOUNTS = [0.05, 0.1, 0.25, 0.5, 1];
 
 const TokenTable = ({ tokens, title, showProgress = true }) => {
-  const formatValue = (value) => {
-    if (!value) return '-';
-    return value;
-  };
+  const [selectedToken, setSelectedToken] = useState(null);
+  const [buyAmount, setBuyAmount] = useState(0.1);
+  const [isBuying, setIsBuying] = useState(false);
+  const [buyStatus, setBuyStatus] = useState(null); // 'success' | 'error' | null
+  const [txSignature, setTxSignature] = useState(null);
+  
+  const { publicKey, connected, signTransaction } = useWallet();
+  const { connection } = useConnection();
+  const { setVisible } = useWalletModal();
 
   const copyAddress = (address) => {
     navigator.clipboard.writeText(address);
+  };
+
+  const handleBuy = async (token, amount) => {
+    if (!connected) {
+      setVisible(true);
+      return;
+    }
+
+    setIsBuying(true);
+    setBuyStatus(null);
+    
+    try {
+      // Call backend to create buy transaction
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/sniper/buy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mint: token.fullAddress,
+          solAmount: amount,
+          walletAddress: publicKey.toBase58(),
+          slippage: 25,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to create transaction');
+      }
+
+      const { transaction: txBase64 } = await response.json();
+      
+      // Deserialize and sign
+      const tx = Transaction.from(Buffer.from(txBase64, 'base64'));
+      const signedTx = await signTransaction(tx);
+      
+      // Send transaction
+      const signature = await connection.sendRawTransaction(signedTx.serialize(), {
+        skipPreflight: true,
+        maxRetries: 3,
+      });
+      
+      setTxSignature(signature);
+      
+      // Wait for confirmation
+      await connection.confirmTransaction(signature, 'confirmed');
+      
+      setBuyStatus('success');
+      console.log('Buy successful:', signature);
+      
+    } catch (error) {
+      console.error('Buy error:', error);
+      setBuyStatus('error');
+    } finally {
+      setIsBuying(false);
+      setTimeout(() => {
+        setBuyStatus(null);
+        setTxSignature(null);
+      }, 5000);
+    }
+  };
+
+  const QuickBuyButton = ({ token }) => (
+    <Button
+      size="sm"
+      onClick={(e) => {
+        e.stopPropagation();
+        if (!connected) {
+          setVisible(true);
+        } else {
+          setSelectedToken(token);
+        }
+      }}
+      className="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-black text-xs font-semibold rounded-md transition-all hover:scale-105"
+    >
+      Buy
+    </Button>
+  );
   };
 
   return (
