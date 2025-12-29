@@ -185,7 +185,29 @@ export const PumpFunProvider = ({ children }) => {
           trades: [trade],
           lastPrice: price,
           lastTrade: trade,
+          metadataLoading: true,
         };
+        
+        // Fetch metadata in background for new tokens
+        fetchTokenMetadata(event.mint).then(metadata => {
+          if (metadata && !metadata.error) {
+            setTokens(prev => prev.map(t => {
+              if (t.fullAddress === event.mint) {
+                return {
+                  ...t,
+                  name: metadata.name || t.name,
+                  symbol: metadata.symbol || t.symbol,
+                  logo: metadata.image || t.logo,
+                  hasTwitter: !!metadata.twitter,
+                  twitter: metadata.twitter,
+                  hasWebsite: !!metadata.website,
+                  metadataLoading: false,
+                };
+              }
+              return t;
+            }));
+          }
+        });
         
         console.log('Created token from trade:', newToken.fullAddress.slice(0, 10));
         return [newToken, ...prev].slice(0, 100);
