@@ -43,14 +43,16 @@ const TrenchesView = () => {
 
   // Filter tokens by bonding progress for different tabs
   const tokensByTab = useMemo(() => {
-    const trenches = allTokens.filter(t => (t.progress || 0) < 80);
-    const almostBonded = allTokens.filter(t => (t.progress || 0) >= 80 && (t.progress || 0) < 100);
+    const trenches = allTokens.filter(t => (t.progress || 0) < 80 && !t.isMigrated);
+    const almostBonded = allTokens.filter(t => (t.progress || 0) >= 80 && (t.progress || 0) < 100 && !t.isMigrated);
     const migrated = allTokens.filter(t => (t.progress || 0) >= 100 || t.isMigrated);
     
+    // For migrated tab: show live migrated tokens if any, otherwise show message
+    // Don't fall back to mock data - show empty state instead
     return {
       trenches: trenches.length > 0 ? trenches : mockTokens.trenches,
       almostBonded: almostBonded.length > 0 ? almostBonded : mockTokens.almostBonded,
-      migrated: migrated.length > 0 ? migrated : mockTokens.migrated,
+      migrated: migrated, // Don't fall back to mock - show actual migrations only
     };
   }, [allTokens]);
 
