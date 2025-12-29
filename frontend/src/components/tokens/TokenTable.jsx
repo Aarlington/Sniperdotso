@@ -271,28 +271,144 @@ const TokenTable = ({ tokens, title, showProgress = true }) => {
             <div className="col-span-1 flex items-center justify-end">
               <span className={cn(
                 "text-sm font-medium",
-                token.change1h.includes('-') ? "text-red-400" : 
+                token.change1h?.includes?.('-') ? "text-red-400" : 
                 token.change1h === '0%' || token.change1h === '0%/0%' ? "text-gray-500" : "text-green-400"
               )}>
-                {token.change1h}
+                {token.change1h || '0%'}
               </span>
             </div>
 
             {/* Action */}
             <div className="col-span-1 flex items-center justify-center">
-              <Button
-                size="sm"
-                className="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-black text-xs font-semibold rounded-md transition-all hover:scale-105"
-                onClick={(e) => {
-                  e.stopPropagation();
-                }}
-              >
-                Buy
-              </Button>
+              <QuickBuyButton token={token} />
             </div>
           </div>
         ))}
       </div>
+
+      {/* Buy Modal */}
+      <Dialog open={!!selectedToken} onOpenChange={() => setSelectedToken(null)}>
+        <DialogContent className="bg-[#0d0d0f] border-[#1f1f23] text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              {selectedToken?.logo ? (
+                <img src={selectedToken.logo} alt="" className="w-10 h-10 rounded-full" />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500/30 to-pink-500/30 flex items-center justify-center">
+                  <span className="text-white text-sm font-bold">{selectedToken?.symbol?.slice(0, 2)}</span>
+                </div>
+              )}
+              <div>
+                <span className="text-white font-semibold">{selectedToken?.symbol}</span>
+                {selectedToken?.name && (
+                  <p className="text-gray-500 text-xs">{selectedToken.name}</p>
+                )}
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4 pt-4">
+            {/* Token Info */}
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="bg-[#1f1f23] rounded-lg p-3">
+                <p className="text-gray-500 text-xs">Market Cap</p>
+                <p className="text-white font-semibold">{selectedToken?.marketCap}</p>
+              </div>
+              <div className="bg-[#1f1f23] rounded-lg p-3">
+                <p className="text-gray-500 text-xs">Progress</p>
+                <p className="text-green-400 font-semibold">{Math.round(selectedToken?.progress || 0)}%</p>
+              </div>
+              <div className="bg-[#1f1f23] rounded-lg p-3">
+                <p className="text-gray-500 text-xs">Liquidity</p>
+                <p className="text-white font-semibold">{selectedToken?.liquidity} SOL</p>
+              </div>
+            </div>
+
+            {/* Quick Buy Amounts */}
+            <div>
+              <p className="text-gray-400 text-sm mb-2">Quick Buy Amount (SOL)</p>
+              <div className="grid grid-cols-5 gap-2">
+                {QUICK_BUY_AMOUNTS.map(amount => (
+                  <button
+                    key={amount}
+                    onClick={() => setBuyAmount(amount)}
+                    className={cn(
+                      "py-2 rounded-lg text-sm font-medium transition-all",
+                      buyAmount === amount 
+                        ? "bg-green-500 text-black" 
+                        : "bg-[#1f1f23] text-gray-400 hover:bg-[#2a2a2e]"
+                    )}
+                  >
+                    {amount}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Buy Button */}
+            <Button
+              onClick={() => handleBuy(selectedToken, buyAmount)}
+              disabled={isBuying || !connected}
+              className={cn(
+                "w-full py-3 font-semibold text-base transition-all",
+                buyStatus === 'success' && "bg-green-500",
+                buyStatus === 'error' && "bg-red-500",
+                !buyStatus && "bg-green-500 hover:bg-green-600 text-black"
+              )}
+            >
+              {isBuying ? (
+                <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Buying...</>
+              ) : buyStatus === 'success' ? (
+                <><Check className="w-5 h-5 mr-2" /> Bought!</>
+              ) : buyStatus === 'error' ? (
+                <><AlertCircle className="w-5 h-5 mr-2" /> Failed</>
+              ) : !connected ? (
+                'Connect Wallet First'
+              ) : (
+                <><Zap className="w-5 h-5 mr-2" /> Buy {buyAmount} SOL</>
+              )}
+            </Button>
+
+            {/* Transaction Link */}
+            {txSignature && buyStatus === 'success' && (
+              <a
+                href={`https://solscan.io/tx/${txSignature}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-center text-sm text-blue-400 hover:text-blue-300"
+              >
+                View on Solscan →
+              </a>
+            )}
+
+            {/* Links */}
+            <div className="flex items-center justify-center gap-4 pt-2 border-t border-[#1f1f23]">
+              <a
+                href={`https://pump.fun/coin/${selectedToken?.fullAddress}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-gray-400 hover:text-white flex items-center gap-1"
+              >
+                <ExternalLink className="w-3 h-3" /> Pump.fun
+              </a>
+              <a
+                href={`https://dexscreener.com/solana/${selectedToken?.fullAddress}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-gray-400 hover:text-white flex items-center gap-1"
+              >
+                <ExternalLink className="w-3 h-3" /> DexScreener
+              </a>
+              <button
+                onClick={() => copyAddress(selectedToken?.fullAddress)}
+                className="text-sm text-gray-400 hover:text-white flex items-center gap-1"
+              >
+                <Copy className="w-3 h-3" /> Copy CA
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
