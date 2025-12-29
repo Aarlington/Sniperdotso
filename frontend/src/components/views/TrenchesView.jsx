@@ -75,9 +75,21 @@ const TrenchesView = () => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h2 className="text-xl font-bold text-white">SOL Trenches</h2>
-          <span className="px-2 py-0.5 text-xs font-medium bg-green-500/20 text-green-400 rounded-full">
-            Live
+          <span className={cn(
+            "px-2 py-0.5 text-xs font-medium rounded-full flex items-center gap-1",
+            isConnected ? "bg-green-500/20 text-green-400" : "bg-yellow-500/20 text-yellow-400"
+          )}>
+            {isConnected ? (
+              <><Wifi className="w-3 h-3" /> Live</>
+            ) : (
+              <><WifiOff className="w-3 h-3" /> {connectionStatus}</>
+            )}
           </span>
+          {liveTokens.length > 0 && (
+            <span className="px-2 py-0.5 text-xs font-medium bg-blue-500/20 text-blue-400 rounded-full">
+              {liveTokens.length} tokens
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Button
