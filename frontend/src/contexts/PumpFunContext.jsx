@@ -5,6 +5,9 @@ const WS_URL = BACKEND_URL?.replace('https://', 'wss://').replace('http://', 'ws
 
 const PumpFunContext = createContext(null);
 
+// Cache for token metadata
+const metadataCache = new Map();
+
 export const usePumpFun = () => {
   const context = useContext(PumpFunContext);
   if (!context) {
@@ -12,6 +15,27 @@ export const usePumpFun = () => {
   }
   return context;
 };
+
+// Fetch token metadata from Pump.fun API
+async function fetchTokenMetadata(mint) {
+  if (metadataCache.has(mint)) {
+    return metadataCache.get(mint);
+  }
+  
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/sniper/metadata/${mint}`);
+    if (response.ok) {
+      const data = await response.json();
+      if (!data.error) {
+        metadataCache.set(mint, data);
+        return data;
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching metadata:', error);
+  }
+  return null;
+}
 
 export const PumpFunProvider = ({ children }) => {
   const [tokens, setTokens] = useState([]);
