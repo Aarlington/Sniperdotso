@@ -67,9 +67,11 @@ class PumpFunEventService:
         
         for client in self.clients:
             try:
-                await client.send(message_json)
-            except ConnectionClosed:
-                disconnected.add(client)
+                # Support both websockets library and FastAPI WebSocket
+                if hasattr(client, 'send_text'):
+                    await client.send_text(message_json)
+                else:
+                    await client.send(message_json)
             except Exception as e:
                 logger.error(f"Error broadcasting to client: {e}")
                 disconnected.add(client)
