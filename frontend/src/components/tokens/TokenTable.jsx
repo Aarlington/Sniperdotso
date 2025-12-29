@@ -138,9 +138,20 @@ const TokenTable = ({ tokens, title, showProgress = true }) => {
         <div className="col-span-1 text-center">Action</div>
       </div>
 
+      {/* Empty State */}
+      {(!tokens || tokens.length === 0) && (
+        <div className="py-16 text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#1f1f23] flex items-center justify-center">
+            <TrendingUp className="w-8 h-8 text-gray-600" />
+          </div>
+          <p className="text-gray-500 text-sm">No tokens in this category yet</p>
+          <p className="text-gray-600 text-xs mt-1">Tokens will appear here as they stream in</p>
+        </div>
+      )}
+
       {/* Table Body */}
       <div className="divide-y divide-[#1f1f23]">
-        {tokens.map((token, index) => (
+        {tokens && tokens.map((token, index) => (
           <div
             key={token.id}
             className="grid grid-cols-12 gap-2 px-4 py-3 hover:bg-[#1a1a1e] transition-colors cursor-pointer group"
