@@ -46,13 +46,13 @@ export const PumpFunProvider = ({ children }) => {
   const reconnectTimeoutRef = useRef(null);
 
   // Process incoming token creation event
-  const handleCreateEvent = useCallback((event) => {
+  const handleCreateEvent = useCallback(async (event) => {
     const newToken = {
       id: event.mint,
       address: `${event.mint.slice(0, 4)}...${event.mint.slice(-4)}`,
       fullAddress: event.mint,
-      symbol: event.symbol,
-      name: event.name,
+      symbol: event.symbol || event.mint.slice(0, 6).toUpperCase(),
+      name: event.name || `Token ${event.mint.slice(0, 8)}`,
       logo: event.uri ? `https://pump.fun/image/${event.mint}` : null,
       age: '0s',
       createdAt: Date.now(),
@@ -78,6 +78,26 @@ export const PumpFunProvider = ({ children }) => {
       priceHistory: [],
       trades: [],
     };
+
+    // Fetch metadata in background
+    fetchTokenMetadata(event.mint).then(metadata => {
+      if (metadata) {
+        setTokens(prev => prev.map(t => {
+          if (t.fullAddress === event.mint) {
+            return {
+              ...t,
+              name: metadata.name || t.name,
+              symbol: metadata.symbol || t.symbol,
+              logo: metadata.image || t.logo,
+              hasTwitter: !!metadata.twitter,
+              twitter: metadata.twitter,
+              hasWebsite: !!metadata.website,
+            };
+          }
+          return t;
+        }));
+      }
+    });
 
     setTokens(prev => [newToken, ...prev].slice(0, 100)); // Keep last 100 tokens
   }, []);
