@@ -439,6 +439,19 @@ function formatAge(ms) {
   return `${days}d`;
 }
 
+function formatMarketCapUsd(value) {
+  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `$${(value / 1_000).toFixed(1)}K`;
+  return `$${value.toFixed(0)}`;
+}
+
+function formatVolumeUsd(value) {
+  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `$${(value / 1_000).toFixed(1)}K`;
+  if (value >= 1) return `$${value.toFixed(0)}`;
+  return `$${value.toFixed(2)}`;
+}
+
 function formatMarketCap(value) {
   if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
   if (value >= 1000) return `$${(value / 1000).toFixed(1)}K`;
@@ -455,6 +468,31 @@ function parseVolume(str) {
   if (!str || str === '$0') return 0;
   const num = parseFloat(str.replace('$', '').replace('K', '000').replace('M', '000000'));
   return isNaN(num) ? 0 : num;
+}
+
+function calculatePriceChanges(priceHistory, now) {
+  if (!priceHistory || priceHistory.length < 2) {
+    return { change5m: '0%', change1h: '0%' };
+  }
+  
+  const currentPrice = priceHistory[priceHistory.length - 1].price;
+  
+  // Find price from 5 minutes ago
+  const fiveMinAgo = now - 5 * 60 * 1000;
+  const price5m = priceHistory.find(p => p.time >= fiveMinAgo)?.price || priceHistory[0].price;
+  
+  // Find price from 1 hour ago
+  const oneHourAgo = now - 60 * 60 * 1000;
+  const price1h = priceHistory.find(p => p.time >= oneHourAgo)?.price || priceHistory[0].price;
+  
+  // Calculate percentage changes
+  const change5m = price5m > 0 ? ((currentPrice - price5m) / price5m) * 100 : 0;
+  const change1h = price1h > 0 ? ((currentPrice - price1h) / price1h) * 100 : 0;
+  
+  return {
+    change5m: `${change5m >= 0 ? '+' : ''}${change5m.toFixed(0)}%`,
+    change1h: `${change1h >= 0 ? '+' : ''}${change1h.toFixed(0)}%`,
+  };
 }
 
 export default PumpFunProvider;
