@@ -121,7 +121,6 @@ const TokenTable = ({ tokens, title, showProgress = true }) => {
       Buy
     </Button>
   );
-  };
 
   return (
     <div className="bg-[#0d0d0f] rounded-xl border border-[#1f1f23] overflow-hidden">
