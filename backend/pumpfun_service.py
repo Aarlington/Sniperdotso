@@ -10,10 +10,16 @@ from typing import Set, Dict, Any, Optional
 from datetime import datetime
 import base64
 import struct
+from pathlib import Path
 
 import websockets
 from websockets.exceptions import ConnectionClosed
 import httpx
+from dotenv import load_dotenv
+
+# Load environment variables
+ROOT_DIR = Path(__file__).parent
+load_dotenv(ROOT_DIR / '.env')
 
 logger = logging.getLogger(__name__)
 
