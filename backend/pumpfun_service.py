@@ -104,16 +104,16 @@ class PumpFunEventService:
             uri = data[offset:offset+uri_len].decode('utf-8')
             offset += uri_len
             
-            # Read mint (32 bytes)
-            mint = base64.b64encode(data[offset:offset+32]).decode('utf-8')
+            # Read mint (32 bytes) - convert to base58
+            mint = base58.b58encode(data[offset:offset+32]).decode('utf-8')
             offset += 32
             
             # Read bondingCurve (32 bytes)
-            bonding_curve = base64.b64encode(data[offset:offset+32]).decode('utf-8')
+            bonding_curve = base58.b58encode(data[offset:offset+32]).decode('utf-8')
             offset += 32
             
             # Read user (32 bytes)
-            user = base64.b64encode(data[offset:offset+32]).decode('utf-8')
+            user = base58.b58encode(data[offset:offset+32]).decode('utf-8')
             
             return {
                 'name': name,
