@@ -174,13 +174,10 @@ export const PumpFunProvider = ({ children }) => {
     const priceInSol = trade.virtualSolReserves / trade.virtualTokenReserves;
     const priceInUsd = priceInSol * SOL_PRICE_USD;
     
-    // Market cap = price * circulating supply
-    // For bonding curve: circulating = 1B - virtualTokenReserves (tokens sold from curve)
-    const circulatingSupply = 1_000_000_000 - trade.virtualTokenReserves;
-    const marketCapUsd = priceInSol * circulatingSupply * SOL_PRICE_USD;
-    
-    // Fully diluted market cap (total supply * price)
-    const fdvUsd = priceInSol * 1_000_000_000 * SOL_PRICE_USD;
+    // Market cap calculation for bonding curve tokens
+    // Use FDV (Fully Diluted Value) = price * 1B tokens
+    // This is the standard way pump.fun displays MC
+    const marketCapUsd = priceInSol * 1_000_000_000 * SOL_PRICE_USD;
     
     // Volume in USD
     const tradeVolumeUsd = trade.solAmount * SOL_PRICE_USD;
