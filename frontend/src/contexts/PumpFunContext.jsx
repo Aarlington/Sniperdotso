@@ -141,6 +141,9 @@ export const PumpFunProvider = ({ children }) => {
     const price = trade.virtualSolReserves / trade.virtualTokenReserves;
     const marketCap = price * 1000000000; // Total supply is 1B
     const progress = Math.min(((85 - trade.realSolReserves) / 85) * 100, 100); // Bonding curve needs ~85 SOL to complete
+    
+    // Check if token is graduating (progress >= 99%)
+    const isGraduating = progress >= 99;
 
     // Update token with new trade data OR create new token if it doesn't exist
     setTokens(prev => {
@@ -156,6 +159,9 @@ export const PumpFunProvider = ({ children }) => {
               volume: trade.solAmount,
             };
             
+            // Mark as migrated if progress hits 100%
+            const shouldMigrate = progress >= 100 || (isGraduating && !token.isMigrated);
+            
             return {
               ...token,
               marketCap: formatMarketCap(marketCap),
@@ -166,6 +172,8 @@ export const PumpFunProvider = ({ children }) => {
               trades: [trade, ...token.trades].slice(0, 50),
               lastPrice: price,
               lastTrade: trade,
+              isMigrated: shouldMigrate ? true : token.isMigrated,
+              graduatedAt: shouldMigrate && !token.graduatedAt ? Date.now() : token.graduatedAt,
             };
           }
           return token;
