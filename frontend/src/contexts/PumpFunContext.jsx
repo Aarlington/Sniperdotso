@@ -137,10 +137,19 @@ export const PumpFunProvider = ({ children }) => {
       realTokenReserves: Number(event.realTokenReserves) / 1e6,
     };
 
-    // Calculate price and market cap
-    const price = trade.virtualSolReserves / trade.virtualTokenReserves;
-    const marketCap = price * 1000000000; // Total supply is 1B
-    const progress = Math.min(((85 - trade.realSolReserves) / 85) * 100, 100); // Bonding curve needs ~85 SOL to complete
+    // Calculate price (in SOL per token)
+    const priceInSol = trade.virtualSolReserves / trade.virtualTokenReserves;
+    const SOL_PRICE_USD = 180; // Approximate SOL price - could fetch real price
+    const priceInUsd = priceInSol * SOL_PRICE_USD;
+    
+    // Market cap = price * total supply (1 billion tokens)
+    const marketCapUsd = priceInUsd * 1_000_000_000;
+    
+    // Volume in USD
+    const tradeVolumeUsd = trade.solAmount * SOL_PRICE_USD;
+    
+    // Progress to bonding completion (needs ~85 SOL)
+    const progress = Math.min(((85 - trade.realSolReserves) / 85) * 100, 100);
     
     // Check if token is graduating (progress >= 99%)
     const isGraduating = progress >= 99;
@@ -153,27 +162,50 @@ export const PumpFunProvider = ({ children }) => {
         // Update existing token
         return prev.map(token => {
           if (token.fullAddress === event.mint) {
+            const now = Date.now();
             const newPricePoint = {
               time: trade.timestamp,
-              price: price,
-              volume: trade.solAmount,
+              price: priceInSol,
+              priceUsd: priceInUsd,
+              volume: tradeVolumeUsd,
             };
+            
+            // Calculate price changes from history
+            const updatedHistory = [...token.priceHistory, newPricePoint].slice(-200);
+            const { change5m, change1h } = calculatePriceChanges(updatedHistory, now);
+            
+            // Track unique traders for holder estimate
+            const uniqueTraders = new Set([
+              ...(token.uniqueTraders || []),
+              event.user
+            ]);
+            
+            // Accumulate volume properly
+            const totalVolumeUsd = (token.totalVolumeUsd || 0) + tradeVolumeUsd;
             
             // Mark as migrated if progress hits 100%
             const shouldMigrate = progress >= 100 || (isGraduating && !token.isMigrated);
             
             return {
               ...token,
-              marketCap: formatMarketCap(marketCap),
-              volume: formatVolume(trade.solAmount + parseVolume(token.volume)),
+              marketCap: formatMarketCapUsd(marketCapUsd),
+              volume: formatVolumeUsd(totalVolumeUsd),
+              totalVolumeUsd: totalVolumeUsd,
+              liquidity: trade.realSolReserves.toFixed(2),
               txCount: token.txCount + 1,
+              holders: uniqueTraders.size,
+              uniqueTraders: Array.from(uniqueTraders),
               progress: Math.min(Math.max(progress, 0), 100),
-              priceHistory: [...token.priceHistory, newPricePoint].slice(-100),
+              priceHistory: updatedHistory,
               trades: [trade, ...token.trades].slice(0, 50),
-              lastPrice: price,
+              lastPrice: priceInSol,
+              lastPriceUsd: priceInUsd,
               lastTrade: trade,
+              change5m: change5m,
+              change1h: change1h,
               isMigrated: shouldMigrate ? true : token.isMigrated,
               graduatedAt: shouldMigrate && !token.graduatedAt ? Date.now() : token.graduatedAt,
+              isGreen: trade.isBuy,
             };
           }
           return token;
