@@ -298,6 +298,9 @@ class PumpFunEventService:
                                 value = result.get('value', {})
                                 logs = value.get('logs', [])
                                 
+                                if logs:
+                                    logger.info(f"Received {len(logs)} logs from transaction")
+                                
                                 for log in logs:
                                     await self.process_log(log)
                                     
