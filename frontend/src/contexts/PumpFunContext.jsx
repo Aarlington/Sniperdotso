@@ -249,8 +249,7 @@ export const PumpFunProvider = ({ children }) => {
       } else {
         // Create new token from trade event
         const SOL_PRICE_USD = currentSolPrice;
-        const circulatingSupply = 1_000_000_000 - trade.virtualTokenReserves;
-        const marketCapUsd = priceInSol * circulatingSupply * SOL_PRICE_USD;
+        const marketCapUsd = priceInSol * 1_000_000_000 * SOL_PRICE_USD;
         
         const newToken = {
           id: event.mint,
