@@ -247,6 +247,7 @@ class PumpFunEventService:
                         event_data = self.parse_complete_event(data)
                         
                     if event_data:
+                        logger.info(f"Parsed {event_type}: {event_data.get('mint', 'unknown')[:20]}...")
                         await self.broadcast({
                             'type': event_type,
                             'data': event_data,
