@@ -1,15 +1,19 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, WebSocket, WebSocketDisconnect, HTTPException
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List
+from pydantic import BaseModel, Field
+from typing import List, Optional
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
+import asyncio
+import json
 
+from pumpfun_service import pumpfun_service
+from sniper_service import sniper_service
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -25,58 +29,6 @@ app = FastAPI()
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
-
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
-    
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-class StatusCheckCreate(BaseModel):
-    client_name: str
-
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
-async def root():
-    return {"message": "Hello World"}
-
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
-
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
-    
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
-    
-    return status_checks
-
-# Include the router in the main app
-app.include_router(api_router)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -84,6 +36,161 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+# Define Models
+class StatusCheck(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    client_name: str
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+class StatusCheckCreate(BaseModel):
+    client_name: str
+
+class BuyRequest(BaseModel):
+    mint: str
+    solAmount: float
+    walletAddress: str
+    slippage: int = 25
+
+class TokenInfo(BaseModel):
+    mint: str
+    
+
+# API Routes
+@api_router.get("/")
+async def root():
+    return {"message": "GMGN Sniper API v1.0"}
+
+@api_router.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "pumpfun_connected": pumpfun_service.is_running,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+@api_router.post("/status", response_model=StatusCheck)
+async def create_status_check(input: StatusCheckCreate):
+    status_dict = input.dict()
+    status_obj = StatusCheck(**status_dict)
+    _ = await db.status_checks.insert_one(status_obj.dict())
+    return status_obj
+
+@api_router.get("/status", response_model=List[StatusCheck])
+async def get_status_checks():
+    status_checks = await db.status_checks.find().to_list(1000)
+    return [StatusCheck(**status_check) for status_check in status_checks]
+
+
+# Sniper Routes
+@api_router.post("/sniper/buy")
+async def create_buy_transaction(request: BuyRequest):
+    """Create a buy transaction for a Pump.fun token"""
+    try:
+        transaction = await sniper_service.create_buy_transaction(
+            mint_address=request.mint,
+            buyer_address=request.walletAddress,
+            sol_amount=request.solAmount,
+            slippage_percent=request.slippage
+        )
+        
+        if not transaction:
+            raise HTTPException(status_code=400, detail="Failed to create transaction")
+            
+        return {"transaction": transaction}
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error creating buy transaction: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@api_router.get("/sniper/token/{mint}")
+async def get_token_info(mint: str):
+    """Get token bonding curve information"""
+    try:
+        from solders.pubkey import Pubkey
+        mint_pubkey = Pubkey.from_string(mint)
+        
+        bonding_curve = await sniper_service.get_bonding_curve_account(mint_pubkey)
+        
+        if not bonding_curve:
+            raise HTTPException(status_code=404, detail="Token not found")
+            
+        # Calculate progress percentage
+        # Bonding curve completes at ~79 SOL
+        real_sol = bonding_curve['realSolReserves'] / 1e9
+        progress = min(((79 - (79 - real_sol)) / 79) * 100, 100)
+        
+        return {
+            **bonding_curve,
+            'progress': progress,
+            'realSolReservesSOL': real_sol,
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting token info: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+# WebSocket for real-time Pump.fun events
+@api_router.websocket("/ws/pumpfun")
+async def websocket_pumpfun(websocket: WebSocket):
+    """WebSocket endpoint for real-time Pump.fun events"""
+    await websocket.accept()
+    await pumpfun_service.add_client(websocket)
+    
+    try:
+        # Send initial connection message
+        await websocket.send_json({
+            "type": "connected",
+            "message": "Connected to Pump.fun event stream",
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        
+        # Keep connection alive and handle incoming messages
+        while True:
+            try:
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+                message = json.loads(data)
+                
+                if message.get('type') == 'pong':
+                    continue
+                    
+            except asyncio.TimeoutError:
+                # Send ping to keep connection alive
+                await websocket.send_json({"type": "ping"})
+                
+    except WebSocketDisconnect:
+        logger.info("WebSocket client disconnected")
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+    finally:
+        await pumpfun_service.remove_client(websocket)
+
+
+# Include the router in the main app
+app.include_router(api_router)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Start background services on app startup"""
+    await pumpfun_service.start()
+    logger.info("Application started")
+
+
 @app.on_event("shutdown")
-async def shutdown_db_client():
+async def shutdown_event():
+    """Cleanup on app shutdown"""
+    await pumpfun_service.stop()
     client.close()
+    logger.info("Application shutdown")
