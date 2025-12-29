@@ -460,6 +460,7 @@ export const PumpFunProvider = ({ children }) => {
     connectionStatus,
     connect,
     disconnect,
+    solPrice: currentSolPrice,
   };
 
   return (
