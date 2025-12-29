@@ -216,6 +216,10 @@ class PumpFunEventService:
             
     async def process_log(self, log: str):
         """Process a program log and extract events"""
+        if not isinstance(log, str):
+            logger.debug(f"Log is not a string: {type(log)}")
+            return
+            
         if not log.startswith('Program data: '):
             return
             
@@ -226,6 +230,8 @@ class PumpFunEventService:
             
             # Check discriminator
             discriminator = data[:8]
+            
+            logger.info(f"Processing event with discriminator: {discriminator.hex()}")
             
             for disc_bytes, event_type in EVENT_DISCRIMINATORS.items():
                 if discriminator == disc_bytes:
