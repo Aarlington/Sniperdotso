@@ -262,6 +262,13 @@ class SniperService:
             logger.error(f"Error creating sell transaction: {e}")
             raise
 
+    async def create_buy_transaction(
+        self,
+        mint_address: str,
+        buyer_address: str,
+        sol_amount: float,
+        slippage_percent: int = 25
+    ) -> Optional[str]:
         """Create a buy transaction for a Pump.fun token"""
         try:
             mint = Pubkey.from_string(mint_address)
