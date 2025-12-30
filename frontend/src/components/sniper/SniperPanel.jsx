@@ -39,7 +39,7 @@ import {
 } from '../ui/select';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
-import { Transaction } from '@solana/web3.js';
+import { Transaction, PublicKey } from '@solana/web3.js';
 import { usePumpFun } from '../../contexts/PumpFunContext';
 import { useWalletState } from '../../contexts/WalletContext';
 
