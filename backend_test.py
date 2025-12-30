@@ -43,8 +43,9 @@ class SniperAPITester:
         }
         
         # Test data - using realistic Solana addresses
-        self.test_mint = "So11111111111111111111111111111111111111112"  # Wrapped SOL
-        self.test_wallet = "11111111111111111111111111111111"  # System program (valid pubkey format)
+        # Using a properly formatted but potentially non-existent pump.fun token for testing
+        self.test_mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"  # USDC mint (valid format)
+        self.test_wallet = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"  # Valid wallet format
         self.test_position_id = str(uuid.uuid4())
         
     async def __aenter__(self):
