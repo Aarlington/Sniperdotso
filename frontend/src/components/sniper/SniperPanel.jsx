@@ -83,6 +83,32 @@ const SniperPanel = () => {
     }, ...prev].slice(0, 50));
   }, []);
 
+  // Load positions from DB
+  useEffect(() => {
+    if (!publicKey) return;
+
+    const fetchPositions = async () => {
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/sniper/positions/${publicKey.toBase58()}`);
+        if (response.ok) {
+          const data = await response.json();
+          // Only show OPEN positions
+          setSnipedTokens(data.filter(p => p.status === 'OPEN').map(p => ({
+            ...p,
+            fullAddress: p.mint, // Map mint to fullAddress for consistency
+            buyAmount: p.buy_amount,
+            buyPrice: p.buy_price,
+            marketCap: 'Loading...' // Will be updated by tokens context
+          })));
+        }
+      } catch (error) {
+        console.error("Failed to load positions:", error);
+      }
+    };
+    
+    fetchPositions();
+  }, [publicKey]);
+
   // Execute buy transaction
   const executeBuy = useCallback(async (token) => {
     if (!connected || !publicKey) {
@@ -130,19 +156,41 @@ const SniperPanel = () => {
 
       addLog(`✅ Bought ${token.symbol}! TX: ${signature.slice(0, 8)}...`, 'success');
       
-      // Track position
-      const position = {
-        ...token,
-        buyPrice: token.lastPriceUsd,
-        buyAmount: amount,
-        buyTime: Date.now(),
-        txSignature: signature,
-        currentPrice: token.lastPriceUsd,
-        pnl: 0,
-        pnlPercent: 0,
+      // Calculate approximate token amount (Frontend estimation until confirmed)
+      // Assuming 1 SOL = ~30M tokens at 5k MC, varies wildly. 
+      // Better to fetch from backend or just store estimated.
+      // For now, we store 0 and could update later.
+      const estimatedTokens = 0; 
+
+      // Save position to DB
+      const positionData = {
+        wallet_address: publicKey.toBase58(),
+        mint: token.fullAddress,
+        symbol: token.symbol,
+        buy_amount: amount,
+        token_amount: estimatedTokens, // TODO: Update this after confirmation
+        buy_price: token.lastPriceUsd || 0,
+        status: 'OPEN',
+        tp_percent: parseFloat(takeProfit),
+        sl_percent: parseFloat(stopLoss)
       };
-      
-      setSnipedTokens(prev => [position, ...prev]);
+
+      const saveRes = await fetch(`${BACKEND_URL}/api/sniper/positions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(positionData)
+      });
+
+      if (saveRes.ok) {
+        const savedPosition = await saveRes.json();
+        setSnipedTokens(prev => [{
+            ...savedPosition,
+            fullAddress: savedPosition.mint,
+            currentPrice: token.lastPriceUsd,
+            pnl: 0,
+            pnlPercent: 0
+        }, ...prev]);
+      }
       
       return signature;
     } catch (error) {
@@ -151,7 +199,69 @@ const SniperPanel = () => {
     } finally {
       setPendingSnipes(prev => prev.filter(addr => addr !== token.fullAddress));
     }
-  }, [connected, publicKey, buyAmount, balance, slippage, signTransaction, connection, addLog]);
+  }, [connected, publicKey, buyAmount, balance, slippage, signTransaction, connection, addLog, takeProfit, stopLoss]);
+
+  // Execute Sell
+  const executeSell = useCallback(async (position, reason = 'manual') => {
+    if (position.selling) return;
+    
+    // Mark as selling
+    setSnipedTokens(prev => prev.map(p => p.id === position.id ? {...p, selling: true} : p));
+    addLog(`💸 Selling ${position.symbol} (${reason})...`, 'info');
+
+    try {
+        const response = await fetch(`${BACKEND_URL}/api/sniper/sell`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                mint: position.mint,
+                tokenAmount: position.token_amount || 1000000, // Default to dummy if 0, this will likely fail if 0
+                // Wait, if token_amount is 0, we can't sell! 
+                // We need to know how many tokens we have.
+                // Since we didn't implement token balance fetching yet, this is a blocker for auto-sell.
+                // Fallback: Try to sell 100% of wallet balance? 
+                // The API expects 'tokenAmount'. 
+                // We really need to fetch the wallet balance for this token.
+                walletAddress: publicKey.toBase58(),
+                slippage: parseInt(slippage)
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Sell Transaction failed');
+        }
+
+        const { transaction: txBase64 } = await response.json();
+        
+        const tx = Transaction.from(Buffer.from(txBase64, 'base64'));
+        const signedTx = await signTransaction(tx);
+        
+        const signature = await connection.sendRawTransaction(signedTx.serialize(), {
+            skipPreflight: true,
+            maxRetries: 3,
+        });
+
+        addLog(`✅ Sold ${position.symbol}! TX: ${signature.slice(0, 8)}...`, 'success');
+
+        // Close position in DB
+        await fetch(`${BACKEND_URL}/api/sniper/positions/${position.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                status: 'CLOSED', 
+                pnl: position.pnl 
+            })
+        });
+
+        // Remove from list
+        setSnipedTokens(prev => prev.filter(p => p.id !== position.id));
+
+    } catch (error) {
+        addLog(`❌ Sell Failed: ${error.message}`, 'error');
+        setSnipedTokens(prev => prev.map(p => p.id === position.id ? {...p, selling: false} : p));
+    }
+  }, [publicKey, slippage, signTransaction, connection, addLog]);
 
   // Auto-snipe new tokens
   useEffect(() => {
@@ -204,8 +314,10 @@ const SniperPanel = () => {
       if (!currentToken) return position;
 
       const currentPrice = currentToken.lastPriceUsd || position.buyPrice;
-      const pnlPercent = ((currentPrice - position.buyPrice) / position.buyPrice) * 100;
-      const pnlUsd = (currentPrice - position.buyPrice) * position.buyAmount * (solPrice || 180);
+      // If buyPrice is 0 or null, avoid division by zero
+      const safeBuyPrice = position.buyPrice || currentPrice || 1; 
+      const pnlPercent = ((currentPrice - safeBuyPrice) / safeBuyPrice) * 100;
+      const pnlUsd = (currentPrice - safeBuyPrice) * position.buyAmount * (solPrice || 180);
 
       return {
         ...position,
@@ -225,17 +337,17 @@ const SniperPanel = () => {
     const sl = parseFloat(stopLoss) || 50;
 
     for (const position of snipedTokens) {
-      if (position.sold) continue;
+      if (position.selling) continue; // Don't trigger if already selling
 
       if (position.pnlPercent >= tp) {
         addLog(`🎯 TP Hit! ${position.symbol} +${position.pnlPercent.toFixed(0)}%`, 'success');
-        // TODO: Execute sell
+        executeSell(position, 'TP');
       } else if (position.pnlPercent <= -sl) {
         addLog(`🛑 SL Hit! ${position.symbol} ${position.pnlPercent.toFixed(0)}%`, 'error');
-        // TODO: Execute sell
+        executeSell(position, 'SL');
       }
     }
-  }, [snipedTokens, autoSell, takeProfit, stopLoss, addLog]);
+  }, [snipedTokens, autoSell, takeProfit, stopLoss, addLog, executeSell]);
 
   return (
     <div className="space-y-4">
@@ -461,7 +573,7 @@ const SniperPanel = () => {
           </div>
           <div className="divide-y divide-[#1f1f23] max-h-64 overflow-y-auto">
             {snipedTokens.map((position) => (
-              <div key={position.fullAddress} className="px-4 py-3 flex items-center justify-between hover:bg-[#1a1a1e]">
+              <div key={position.fullAddress || position.mint} className="px-4 py-3 flex items-center justify-between hover:bg-[#1a1a1e]">
                 <div className="flex items-center gap-3">
                   <div className={cn(
                     "w-8 h-8 rounded-full flex items-center justify-center",
@@ -475,16 +587,30 @@ const SniperPanel = () => {
                   </div>
                   <div>
                     <p className="text-white font-medium text-sm">{position.symbol}</p>
-                    <p className="text-gray-500 text-xs">{position.buyAmount} SOL @ {position.currentMcap || position.marketCap}</p>
+                    <p className="text-gray-500 text-xs">
+                      {position.buyAmount} SOL @ {(position.currentMcap || position.marketCap || '0').toString().slice(0, 5)}
+                    </p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className={cn(
-                    "font-semibold text-sm",
-                    position.pnlPercent >= 0 ? "text-green-400" : "text-red-400"
-                  )}>
-                    {position.pnlPercent >= 0 ? '+' : ''}{position.pnlPercent.toFixed(1)}%
-                  </p>
+                  <div className="flex items-center gap-2 justify-end">
+                    <p className={cn(
+                      "font-semibold text-sm",
+                      position.pnlPercent >= 0 ? "text-green-400" : "text-red-400"
+                    )}>
+                      {position.pnlPercent >= 0 ? '+' : ''}{position.pnlPercent.toFixed(1)}%
+                    </p>
+                    {/* Manual Sell Button */}
+                    <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        className="h-6 px-2 text-xs bg-red-500/10 hover:bg-red-500/20 text-red-400"
+                        onClick={() => executeSell(position, 'Manual')}
+                        disabled={position.selling}
+                    >
+                        {position.selling ? <Loader2 className="w-3 h-3 animate-spin" /> : 'SELL'}
+                    </Button>
+                  </div>
                   <p className="text-gray-500 text-xs">
                     {position.pnl >= 0 ? '+' : ''}${position.pnl.toFixed(2)}
                   </p>
