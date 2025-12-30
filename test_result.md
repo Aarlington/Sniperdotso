@@ -101,3 +101,72 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+user_problem_statement: "Implement Sniper feature (Buy/Sell) and Auto-Sell logic with persistence."
+backend:
+  - task: "Create Buy Transaction"
+    implemented: true
+    working: "NA"
+    file: "backend/sniper_service.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Implemented logic to construct buy transaction."
+
+  - task: "Create Sell Transaction"
+    implemented: true
+    working: "NA"
+    file: "backend/sniper_service.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Implemented logic to construct sell transaction."
+
+  - task: "Positions CRUD"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Implemented GET/POST/PUT for positions."
+
+frontend:
+  - task: "Sniper Panel UI"
+    implemented: true
+    working: true
+    file: "frontend/src/components/sniper/SniperPanel.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Verified UI with screenshot. Updated with persistence logic."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Create Buy Transaction"
+    - "Create Sell Transaction"
+    - "Positions CRUD"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "main"
+      message: "Please test the Sniper API endpoints. For Buy/Sell, verify they return a base64 transaction string (mock inputs are fine). For Positions, verify CRUD operations."
