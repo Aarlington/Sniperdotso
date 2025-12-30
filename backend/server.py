@@ -52,6 +52,26 @@ class BuyRequest(BaseModel):
     walletAddress: str
     slippage: int = 25
 
+class SellRequest(BaseModel):
+    mint: str
+    tokenAmount: float
+    walletAddress: str
+    slippage: int = 25
+
+class Position(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    wallet_address: str
+    mint: str
+    symbol: str
+    buy_amount: float
+    token_amount: float
+    buy_price: float
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    status: str = 'OPEN'
+    tp_percent: Optional[float] = None
+    sl_percent: Optional[float] = None
+    pnl: Optional[float] = 0.0
+
 class TokenInfo(BaseModel):
     mint: str
     
