@@ -125,6 +125,62 @@ async def create_buy_transaction(request: BuyRequest):
         logger.error(f"Error creating buy transaction: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+@api_router.post("/sniper/sell")
+async def create_sell_transaction(request: SellRequest):
+    """Create a sell transaction for a Pump.fun token"""
+    try:
+        # Pump.fun tokens have 6 decimals
+        token_units = int(request.tokenAmount * 1e6)
+        
+        transaction = await sniper_service.create_sell_transaction(
+            mint_address=request.mint,
+            seller_address=request.walletAddress,
+            token_amount=token_units,
+            slippage_percent=request.slippage
+        )
+        
+        if not transaction:
+            raise HTTPException(status_code=400, detail="Failed to create transaction")
+            
+        return {"transaction": transaction}
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error creating sell transaction: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@api_router.get("/sniper/positions/{wallet_address}", response_model=List[Position])
+async def get_positions(wallet_address: str):
+    positions = await db.positions.find({"wallet_address": wallet_address}, {"_id": 0}).to_list(1000)
+    return [Position(**p) for p in positions]
+
+@api_router.post("/sniper/positions", response_model=Position)
+async def create_position(position: Position):
+    # Ensure _id is not in the inserted document
+    pos_dict = position.dict()
+    await db.positions.insert_one(pos_dict)
+    # Remove _id from response
+    if "_id" in pos_dict:
+        del pos_dict["_id"]
+    return position
+
+@api_router.put("/sniper/positions/{position_id}", response_model=Position)
+async def update_position(position_id: str, update_data: Dict[str, Any]):
+    if 'id' in update_data:
+        del update_data['id']
+    
+    await db.positions.update_one(
+        {"id": position_id},
+        {"$set": update_data}
+    )
+    
+    updated_position = await db.positions.find_one({"id": position_id}, {"_id": 0})
+    if not updated_position:
+        raise HTTPException(status_code=404, detail="Position not found")
+        
+    return Position(**updated_position)
+
 @api_router.get("/sniper/token/{mint}")
 async def get_token_info(mint: str):
     """Get token bonding curve information"""
