@@ -210,18 +210,34 @@ const SniperPanel = () => {
     addLog(`💸 Selling ${position.symbol} (${reason})...`, 'info');
 
     try {
+        let amountToSell = position.token_amount;
+
+        // If amount is unknown, fetch from wallet
+        if (!amountToSell || amountToSell <= 0) {
+            try {
+                const accounts = await connection.getParsedTokenAccountsByOwner(
+                    publicKey, 
+                    { mint: new PublicKey(position.mint) }
+                );
+                if (accounts.value.length > 0) {
+                    amountToSell = accounts.value[0].account.data.parsed.info.tokenAmount.uiAmount;
+                    addLog(`ℹ️ Fetched balance: ${amountToSell} ${position.symbol}`, 'info');
+                }
+            } catch (e) {
+                console.error("Failed to fetch balance", e);
+            }
+        }
+
+        if (!amountToSell || amountToSell <= 0) {
+            throw new Error(`No token balance found for ${position.symbol}`);
+        }
+
         const response = await fetch(`${BACKEND_URL}/api/sniper/sell`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 mint: position.mint,
-                tokenAmount: position.token_amount || 1000000, // Default to dummy if 0, this will likely fail if 0
-                // Wait, if token_amount is 0, we can't sell! 
-                // We need to know how many tokens we have.
-                // Since we didn't implement token balance fetching yet, this is a blocker for auto-sell.
-                // Fallback: Try to sell 100% of wallet balance? 
-                // The API expects 'tokenAmount'. 
-                // We really need to fetch the wallet balance for this token.
+                tokenAmount: amountToSell,
                 walletAddress: publicKey.toBase58(),
                 slippage: parseInt(slippage)
             })
