@@ -8,7 +8,7 @@ import { clusterApiUrl, Connection, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import '@solana/wallet-adapter-react-ui/styles.css';
 
 // Helius RPC endpoint
-const HELIUS_RPC = 'https://mainnet.helius-rpc.com/?api-key=ddd50f96-9b9e-416e-b749-e26a64a48141';
+const HELIUS_RPC = 'https://mainnet.helius-rpc.com/?api-key=solanasniperbot';
 
 // Create a context for additional wallet state
 const WalletStateContext = createContext(null);

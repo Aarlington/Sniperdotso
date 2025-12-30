@@ -1,0 +1,173 @@
+<analysis>**original_problem_statement:**
+The user wants to build a clone of the website , specifically for creating a sniper tool for bonding meme coins on Solana. The initial request was to build the UI first, with the backend integration to follow.
+
+The user later provided a key resource: a GitHub repository () containing SDKs and tools for interacting with pump.fun, and requested to use it for the backend logic.
+
+PRODUCT REQUIREMENTS:
+1.  Create a pixel-perfect UI clone of gmgn.ai.
+2.  Integrate a real-time event listener for new tokens on pump.fun using the provided Helius RPC endpoint.
+3.  Display live token data, including market cap, volume, liquidity, age, and price changes.
+4.  Fetch and display token metadata (name, symbol, image).
+5.  Correctly categorize tokens into Trenches (new), Almost Bonded (nearing completion), and Migrated (graduated to Raydium).
+6.  Integrate Solana wallet connectivity (Phantom/Solflare).
+7.  Implement a Sniper feature to allow users to configure and execute buys on new tokens.
+8.  Fetch and display the live SOL price.
+
+**User's preferred language**: English
+
+**what currently exists?**
+A full-stack application that successfully clones the gmgn.ai UI and streams live data from the pump.fun platform. The backend uses a Python service () to connect to the user's Helius RPC via WebSocket, parsing all , , and  events. These parsed events are then broadcast to the React frontend.
+
+The frontend () receives these events, fetches token metadata using the Helius DAS API, and calculates all key metrics (Market Cap, Volume, Price Changes, etc.) in real-time. The application correctly displays live tokens, categorizes them by bonding curve progress, and shows the live SOL price fetched from CoinGecko. Wallet connection is set up, and clicking the Buy button correctly prompts the user to connect their wallet.
+
+**Last working item**:
+-   **Last item agent was working:** The agent was actively developing the core Sniper feature. It had just completed a full rewrite of the  component to make it functional, moving beyond a static UI. The next step was to verify this new UI.
+-   **Status:** IN PROGRESS
+-   **Agent Testing Done:** N
+-   **Which testing method agent to use?** screenshot tool
+-   **User Testing Done:** N
+
+**All Pending/In progress Issue list**:
+-   **Issue 1: Complete and test the Sniper feature. (P0)**
+-   **Issue 2: Implement Auto-Sell Logic. (P1)**
+
+**Issues Detail:**
+-   **Issue 1:**
+    -   **Attempted fixes:** The agent completely rewrote the  component to include state management and handler stubs for the sniper functionality.
+    -   **Next debug checklist:**
+        1.  Use the  tool to verify that the new  UI renders correctly without errors.
+        2.  Implement the backend logic to handle buy transactions. This will involve creating a new API endpoint (e.g., ).
+        3.  This new endpoint must use the Solana SDKs (potentially adapting logic from the cloned  repo) to construct and send the transaction.
+        4.  Wire the frontend Start Sniper button to call this new backend endpoint, passing the necessary parameters (token mint, amount, slippage, etc.).
+        5.  Implement the logic for auto-selling based on user-defined Take Profit and Stop Loss percentages.
+    -   **Why fix this issue and what will be achieved with the fix?** This is the primary feature of the application. Completing it will deliver the core sniper tool functionality requested by the user.
+    -   **Status:** IN PROGRESS
+    -   **Is recurring issue?** N
+    -   **Should Test frontend/backend/both after fix?** Both
+    -   **Blocked on other issue:** None
+
+-   **Issue 2:**
+    -   **Attempted fixes:** None yet. The UI toggle exists, but no backend logic has been implemented.
+    -   **Next debug checklist:**
+        1.  Design and implement a database schema (MongoDB) to store user positions (e.g.,  collection with fields like , , , , , ).
+        2.  Create a backend service to monitor the price of tokens in active positions.
+        3.  This service should trigger a sell transaction when a take-profit or stop-loss condition is met.
+        4.  Develop a Positions view on the frontend to display active and historical trades.
+    -   **Why fix this issue and what will be achieved with the fix?** This will complete the automated trading loop, providing significant value and making the sniper tool a much more powerful and complete feature.
+    -   **Status:** NOT STARTED
+    -   **Is recurring issue?** N
+    -   **Should Test frontend/backend/both after fix?** Both
+    -   **Blocked on other issue:** Issue 1
+
+**In progress Task List**:
+-   **Task 1: Verify the new  UI. (P0)**
+    -   **Where to resume:** The agent just overwrote . The next action should be to use the  tool to visually confirm the UI.
+    -   **What will be achieved with this?** This will confirm that the foundational UI for the functional sniper is correctly implemented before proceeding to the backend integration.
+    -   **Status:** IN PROGRESS
+    -   **Should Test frontend/backend/both after fix?** Frontend
+    -   **Blocked on something:** None
+
+**Upcoming and Future Tasks**
+-   **Upcoming Tasks:**
+    -   **(P1) Implement the manual Buy transaction flow:** Wire up the Buy button in the token table to execute a purchase transaction through the user's connected wallet.
+    -   **(P2) Add user disclaimers:** Implement prominent warnings about the financial risks associated with using the sniper tool.
+-   **Future Tasks:**
+    -   **(P3) Implement Copy Trading:** Build the feature to automatically mirror the trades of a specified wallet address.
+    -   **(P3) Add embedded charts:** Implement the Open full chart button to show a detailed chart from Birdeye or DexScreener in a modal.
+    -   **(P3) Create a Simulation Mode:** Allow users to test the sniper functionality without committing real funds.
+
+**Completed work in this session**
+-   **UI Clone:** Built the initial frontend clone of gmgn.ai with a dark theme, sidebar, and token table.
+-   **Real-time Backend:** Created a FastAPI WebSocket service () that subscribes to Pump.fun events via a Helius RPC and broadcasts them to the frontend.
+-   **Live Data Integration:** Replaced all mock data with a live, real-time stream of new tokens from pump.fun.
+-   **Data Accuracy Fixes:**
+    -   Implemented correct calculations for Market Cap, Volume, Liquidity, TX Count, and Holders in USD.
+    -   Integrated CoinGecko to use the live SOL price for all calculations.
+    -   Implemented calculation for 5m/1h price changes.
+-   **Metadata Fetching:** Integrated the Helius DAS API to fetch and display real token names, symbols, and images.
+-   **Feature Bug Fixes:**
+    -   Fixed the Age column to update correctly in real-time.
+    -   Fixed the Migrated tab to show real graduated tokens instead of mock data by detecting 100% bonding curve completion.
+-   **Wallet Integration:** Added the Solana Wallet Adapter and connected the UI to trigger the wallet connection modal.
+
+**Earlier issues found/mentioned but not fixed**
+-   None. The agent has been diligent in addressing all issues raised by the user.
+
+**Known issue recurrence from previous fork**
+-   None.
+
+**Code Architecture**
+
+
+**Key Technical Concepts**
+-   **Frontend:** React, Tailwind CSS, shadcn/ui, .
+-   **Backend:** FastAPI (Python).
+-   **Database:** MongoDB (currently unused for core features, planned for ).
+-   **Real-time Data:** A three-part WebSocket chain: Helius -> Backend (Python) -> Frontend (React).
+-   **Solana Integration:** Helius RPC for live event streaming, Helius DAS API for metadata, and  for frontend wallet management.
+
+**key DB schema**
+-   **status_checks**:  (Template default, not in use).
+-   **(Proposed for Sniper)** **positions**: .
+
+**changes in tech stack**
+-   **Frontend:** Added , , and their dependencies (, etc.).
+-   **Backend:** Added usage: websockets [--version | <uri>], , ,  to interact with Solana data structures.
+
+**All files of reference**
+-   : This is the heart of the frontend, managing all token state and real-time updates.
+-   : The engine of the backend, responsible for fetching, parsing, and broadcasting all live data.
+-   : The component currently under development for the core sniper feature.
+-   : Critical file containing the Helius RPC key.
+-   : A key reference directory containing the JavaScript SDK logic that needs to be adapted for the backend sniper functionality.
+
+**Areas that need refactoring**:
+-   The  file has grown to over 400 lines and contains complex state update logic. Consider extracting helper functions (e.g., for calculations, event handling) into separate utility files to improve readability and maintainability.
+
+**key api endpoints**
+-   : The WebSocket endpoint the frontend connects to for live pump.fun events.
+-   : Backend endpoint used to fetch metadata for a given token mint address via the Helius DAS API.
+
+**Critical Info for New Agent**
+-   The user is technically proficient and expects detailed explanations and effective debugging. Transparency is key.
+-   The application's liveness depends entirely on the  successfully connecting to the Helius WebSocket. If the UI is not updating, the first place to debug is the backend logs for that service.
+-   The core transaction logic (buy/sell) is not yet implemented. The plan is to adapt the JavaScript code from the  directory to build this functionality in the Python backend.
+-   The user's Helius RPC URL is stored in  and is essential for the application to run.
+
+**documents and test reports created in this job**
+-   None.
+
+**Last 10 User Messages and any pending HUMAN messages**
+1.  **User:** Asks for an audit of the Migrated tab, a high-level explanation of the data flow, and wants to work on the Sniper feature next. *(Status: Partially Addressed - Agent audited and explained, now starting Sniper feature).*
+2.  **User:** Notices incorrect market cap for a migrated token (~00) and asks for live SOL price integration. *(Status: Resolved).*
+3.  **User:** Points out that key data columns (MC, VOL, LIQ, etc.) seem inaccurate. *(Status: Resolved).*
+4.  **User:** Reports that the Migrated tab appears to be showing mock data. *(Status: Resolved).*
+5.  **User:** Notes that the Buy button, Migrated tab, and Age column are not working correctly. *(Status: Resolved).*
+6.  **User:** Confirms the data stream works but metadata (names/symbols) is missing. *(Status: Resolved).*
+7.  **User:** Reports that no real token data is streaming in after connecting a wallet. *(Status: Resolved).*
+8.  **User:** Agrees with the agent's proposed architecture and provides the Helius RPC key. *(Status: Acknowledged).*
+9.  **User:** Discusses wallet connection strategy and expresses concern about chart update speed for volatile coins. *(Status: Acknowledged).*
+10. **User:** Asks if the agent can clone the provided GitHub repo. *(Status: Acknowledged and completed).*
+
+**Project Health Check:**
+-   **Broken:**
+    -   The main sniper buy/sell transaction functionality. The UI exists but is not wired to perform any action.
+-   **Mocked:**
+    -   The application is now fully running on live data. Mock data only serves as a fallback and is not being displayed.
+
+**3rd Party Integrations**
+-   **Helius:** Powers the real-time event stream and token metadata fetching. Requires a User API Key.
+-   **CoinGecko:** Used for fetching the live SOL price via a public API. No key is required.
+-   **Solana Wallet Adapter:** Manages user wallet connections (e.g., Phantom, Solflare).
+
+**Testing status**
+-   **Testing agent used after significant changes:** NO
+-   **Troubleshoot agent used after agent stuck in loop:** NO
+-   **Test files created:** None
+-   **Known regressions:** None
+
+**Credentials to test flow:**
+-   No credentials are required. To test the wallet connection, the user must connect their own Phantom or Solflare wallet on the Solana mainnet.
+
+**What agent forgot to execute**
+-   The agent's last action was to rewrite . It did not execute the immediate next step, which was to take a screenshot to verify that the new UI renders correctly.</analysis>
