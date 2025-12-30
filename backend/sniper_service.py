@@ -166,17 +166,102 @@ class SniperService:
         
         return min(tokens_out, real_token)
         
-    def calculate_slippage(self, amount: int, slippage_bps: int) -> int:
-        """Calculate amount with slippage"""
-        return amount + (amount * slippage_bps) // 10000
+    def calculate_sell_price(self, bonding_curve: Dict, token_amount: int) -> int:
+        """Calculate minimum SOL output for selling tokens"""
+        virtual_sol = bonding_curve['virtualSolReserves']
+        virtual_token = bonding_curve['virtualTokenReserves']
         
-    async def create_buy_transaction(
+        if bonding_curve['complete']:
+            raise ValueError("Bonding curve is complete")
+            
+        # AMM formula for sell: n = (amount * virtualSol) / (virtualToken + amount)
+        n = (token_amount * virtual_sol) // (virtual_token + token_amount)
+        
+        # Calculate fee (1%)
+        # Fee basis points is typically 100 (1%)
+        fee_bps = 100 
+        fee = (n * fee_bps) // 10000
+        
+        return n - fee
+
+    async def create_sell_transaction(
         self,
         mint_address: str,
-        buyer_address: str,
-        sol_amount: float,
+        seller_address: str,
+        token_amount: int,
         slippage_percent: int = 25
     ) -> Optional[str]:
+        """Create a sell transaction for a Pump.fun token"""
+        try:
+            mint = Pubkey.from_string(mint_address)
+            seller = Pubkey.from_string(seller_address)
+            
+            # Get bonding curve data
+            bonding_curve = await self.get_bonding_curve_account(mint)
+            if not bonding_curve:
+                raise ValueError("Token not found")
+                
+            # Get global account for fee recipient
+            global_account = await self.get_global_account()
+            if not global_account:
+                raise ValueError("Could not get global account")
+                
+            # Calculate min SOL output with slippage
+            min_sol_output = self.calculate_sell_price(bonding_curve, token_amount)
+            slippage_bps = slippage_percent * 100
+            min_sol_with_slippage = min_sol_output - (min_sol_output * slippage_bps) // 10000
+            
+            # Derive PDAs
+            bonding_curve_pda = Pubkey.from_string(bonding_curve['address'])
+            fee_recipient = Pubkey.from_string(global_account['feeRecipient'])
+            global_pda = Pubkey.from_string(global_account['address'])
+            
+            # Get associated token accounts
+            associated_bonding_curve = self.get_associated_token_address(mint, bonding_curve_pda)
+            associated_user = self.get_associated_token_address(mint, seller)
+            
+            # Build sell instruction
+            # Discriminator for 'sell': [51, 230, 133, 164, 1, 127, 131, 173]
+            sell_discriminator = bytes([51, 230, 133, 164, 1, 127, 131, 173])
+            instruction_data = sell_discriminator + struct.pack('<Q', token_amount) + struct.pack('<Q', min_sol_with_slippage)
+            
+            accounts = [
+                AccountMeta(global_pda, is_signer=False, is_writable=False),
+                AccountMeta(fee_recipient, is_signer=False, is_writable=True),
+                AccountMeta(mint, is_signer=False, is_writable=False),
+                AccountMeta(bonding_curve_pda, is_signer=False, is_writable=True),
+                AccountMeta(associated_bonding_curve, is_signer=False, is_writable=True),
+                AccountMeta(associated_user, is_signer=False, is_writable=True),
+                AccountMeta(seller, is_signer=True, is_writable=True),
+                AccountMeta(SYS_PROGRAM_ID, is_signer=False, is_writable=False),
+                AccountMeta(ASSOCIATED_TOKEN_PROGRAM_ID, is_signer=False, is_writable=False),
+                AccountMeta(TOKEN_PROGRAM_ID, is_signer=False, is_writable=False),
+                AccountMeta(EVENT_AUTHORITY, is_signer=False, is_writable=False),
+                AccountMeta(PUMP_FUN_PROGRAM_ID, is_signer=False, is_writable=False),
+            ]
+            
+            sell_ix = Instruction(PUMP_FUN_PROGRAM_ID, instruction_data, accounts)
+            
+            instructions = [sell_ix]
+            
+            # Get recent blockhash
+            blockhash = await self.get_recent_blockhash()
+            
+            # Create transaction
+            message = Message.new_with_blockhash(
+                instructions,
+                seller,
+                Hash.from_string(blockhash)
+            )
+            
+            tx = Transaction.new_unsigned(message)
+            
+            return base64.b64encode(bytes(tx)).decode('utf-8')
+            
+        except Exception as e:
+            logger.error(f"Error creating sell transaction: {e}")
+            raise
+
         """Create a buy transaction for a Pump.fun token"""
         try:
             mint = Pubkey.from_string(mint_address)
