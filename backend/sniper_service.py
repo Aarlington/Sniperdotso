@@ -184,6 +184,10 @@ class SniperService:
         
         return n - fee
 
+    def calculate_slippage(self, amount: int, slippage_bps: int) -> int:
+        """Calculate amount with slippage"""
+        return amount + (amount * slippage_bps) // 10000
+
     async def create_sell_transaction(
         self,
         mint_address: str,
