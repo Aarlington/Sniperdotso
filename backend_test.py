@@ -456,6 +456,14 @@ class SniperAPITester:
         await self.test_positions_get()
         await self.test_positions_update()
         
+        # Run copy trade tests
+        await self.test_copytrade_create()
+        await self.test_copytrade_get()
+        await self.test_copytrade_delete()
+        
+        # Test CopyTradeManager logic
+        await self.test_copytrade_manager_logic()
+        
         return self.test_results
     
     def print_summary(self):
