@@ -50,6 +50,8 @@ class SniperAPITester:
         self.test_mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"  # USDC mint (valid format)
         self.test_wallet = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"  # Valid wallet format
         self.test_position_id = str(uuid.uuid4())
+        self.test_target_id = str(uuid.uuid4())
+        self.test_target_wallet = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"  # Another valid wallet format
         
     async def __aenter__(self):
         self.session = aiohttp.ClientSession()
