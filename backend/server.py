@@ -11,6 +11,7 @@ import uuid
 from datetime import datetime
 import asyncio
 import json
+import httpx
 
 from pumpfun_service import pumpfun_service
 from sniper_service import sniper_service
