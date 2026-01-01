@@ -148,6 +148,18 @@ backend:
           agent: "testing"
           comment: "All CRUD operations working perfectly. CREATE, READ (GET), and UPDATE endpoints tested successfully with proper data persistence."
 
+  - task: "Copy Trade Targets CRUD"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "All Copy Trade endpoints working perfectly. CREATE (POST /api/copytrade/targets), GET (GET /api/copytrade/targets), and DELETE (DELETE /api/copytrade/targets/{id}) endpoints tested successfully. CopyTradeManager logic also verified - correctly identifies target trades and applies filtering rules."
+
 frontend:
   - task: "Sniper Panel UI"
     implemented: true
