@@ -348,6 +348,13 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     """Start background services on app startup"""
+    # Initialize copy trade manager
+    try:
+        targets = await db.copy_targets.find({}, {"_id": 0}).to_list(1000)
+        copy_trade_manager.update_targets(targets)
+    except Exception as e:
+        logger.error(f"Failed to load copy targets: {e}")
+        
     await pumpfun_service.start()
     logger.info("Application started")
 
