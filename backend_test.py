@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend API Testing for Sniper Service
-Tests the Buy/Sell transaction endpoints and Positions CRUD operations
+Backend API Testing for Sniper Service and Copy Trade
+Tests the Buy/Sell transaction endpoints, Positions CRUD operations, and Copy Trade endpoints
 """
 
 import asyncio
