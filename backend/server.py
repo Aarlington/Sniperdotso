@@ -203,6 +203,38 @@ async def get_token_info(mint: str):
         bonding_curve = await sniper_service.get_bonding_curve_account(mint_pubkey)
         
         if not bonding_curve:
+
+# Copy Trade Routes
+@api_router.get("/copytrade/targets", response_model=List[CopyTradeTarget])
+async def get_copy_targets():
+    targets = await db.copy_targets.find({}, {"_id": 0}).to_list(1000)
+    return [CopyTradeTarget(**t) for t in targets]
+
+@api_router.post("/copytrade/targets", response_model=CopyTradeTarget)
+async def create_copy_target(target: CopyTradeTarget):
+    target_dict = target.dict()
+    await db.copy_targets.insert_one(target_dict)
+    
+    # Refresh cache
+    all_targets = await db.copy_targets.find({}, {"_id": 0}).to_list(1000)
+    copy_trade_manager.update_targets(all_targets)
+    
+    if "_id" in target_dict:
+        del target_dict["_id"]
+    return target
+
+@api_router.delete("/copytrade/targets/{target_id}")
+async def delete_copy_target(target_id: str):
+    result = await db.copy_targets.delete_one({"id": target_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Target not found")
+        
+    # Refresh cache
+    all_targets = await db.copy_targets.find({}, {"_id": 0}).to_list(1000)
+    copy_trade_manager.update_targets(all_targets)
+    
+    return {"status": "deleted"}
+
             raise HTTPException(status_code=404, detail="Token not found")
             
         # Calculate progress percentage
