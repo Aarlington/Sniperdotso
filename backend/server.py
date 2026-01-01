@@ -251,10 +251,6 @@ async def delete_copy_target(target_id: str):
     copy_trade_manager.update_targets(all_targets)
     
     return {"status": "deleted"}
-        
-    except Exception as e:
-        logger.error(f"Error getting token info: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @api_router.get("/sniper/metadata/{mint}")
