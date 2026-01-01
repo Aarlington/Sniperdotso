@@ -279,6 +279,165 @@ class SniperAPITester:
             self.test_results['positions_update']['error'] = error
             return False
     
+    async def test_copytrade_create(self):
+        """Test POST /api/copytrade/targets endpoint"""
+        print("\n🧪 Testing Create Copy Trade Target Endpoint...")
+        
+        try:
+            payload = {
+                "id": self.test_target_id,
+                "target_wallet": self.test_target_wallet,
+                "label": "Test Trader",
+                "fixed_buy_amount_sol": 0.05,
+                "enabled": True,
+                "copy_sells": False
+            }
+            
+            async with self.session.post(f"{API_BASE}/copytrade/targets", json=payload) as response:
+                response_text = await response.text()
+                print(f"Create copy target response status: {response.status}")
+                print(f"Create copy target response: {response_text[:200]}...")
+                
+                if response.status == 200:
+                    data = await response.json()
+                    if data.get('id') == self.test_target_id and data.get('target_wallet') == self.test_target_wallet:
+                        print("✅ Create copy trade target endpoint working")
+                        self.test_results['copytrade_create']['passed'] = True
+                        return True
+                    else:
+                        error = "Created target data doesn't match expected values"
+                        print(f"❌ Create copy target failed: {error}")
+                        self.test_results['copytrade_create']['error'] = error
+                        return False
+                else:
+                    error = f"HTTP {response.status}: {response_text}"
+                    print(f"❌ Create copy target failed: {error}")
+                    self.test_results['copytrade_create']['error'] = error
+                    return False
+                    
+        except Exception as e:
+            error = str(e)
+            print(f"❌ Create copy target error: {error}")
+            self.test_results['copytrade_create']['error'] = error
+            return False
+    
+    async def test_copytrade_get(self):
+        """Test GET /api/copytrade/targets endpoint"""
+        print("\n🧪 Testing Get Copy Trade Targets Endpoint...")
+        
+        try:
+            async with self.session.get(f"{API_BASE}/copytrade/targets") as response:
+                response_text = await response.text()
+                print(f"Get copy targets response status: {response.status}")
+                print(f"Get copy targets response: {response_text[:200]}...")
+                
+                if response.status == 200:
+                    data = await response.json()
+                    if isinstance(data, list):
+                        # Check if our test target is in the list
+                        found_target = any(target.get('id') == self.test_target_id for target in data)
+                        if found_target:
+                            print("✅ Get copy targets endpoint working - found test target")
+                        else:
+                            print("✅ Get copy targets endpoint working - returns list format")
+                        self.test_results['copytrade_get']['passed'] = True
+                        return True
+                    else:
+                        error = "Response is not a list"
+                        print(f"❌ Get copy targets failed: {error}")
+                        self.test_results['copytrade_get']['error'] = error
+                        return False
+                else:
+                    error = f"HTTP {response.status}: {response_text}"
+                    print(f"❌ Get copy targets failed: {error}")
+                    self.test_results['copytrade_get']['error'] = error
+                    return False
+                    
+        except Exception as e:
+            error = str(e)
+            print(f"❌ Get copy targets error: {error}")
+            self.test_results['copytrade_get']['error'] = error
+            return False
+    
+    async def test_copytrade_delete(self):
+        """Test DELETE /api/copytrade/targets/{target_id} endpoint"""
+        print("\n🧪 Testing Delete Copy Trade Target Endpoint...")
+        
+        try:
+            async with self.session.delete(f"{API_BASE}/copytrade/targets/{self.test_target_id}") as response:
+                response_text = await response.text()
+                print(f"Delete copy target response status: {response.status}")
+                print(f"Delete copy target response: {response_text[:200]}...")
+                
+                if response.status == 200:
+                    data = await response.json()
+                    if data.get('status') == 'deleted':
+                        print("✅ Delete copy trade target endpoint working")
+                        self.test_results['copytrade_delete']['passed'] = True
+                        return True
+                    else:
+                        error = "Delete response doesn't contain expected status"
+                        print(f"❌ Delete copy target failed: {error}")
+                        self.test_results['copytrade_delete']['error'] = error
+                        return False
+                else:
+                    error = f"HTTP {response.status}: {response_text}"
+                    print(f"❌ Delete copy target failed: {error}")
+                    self.test_results['copytrade_delete']['error'] = error
+                    return False
+                    
+        except Exception as e:
+            error = str(e)
+            print(f"❌ Delete copy target error: {error}")
+            self.test_results['copytrade_delete']['error'] = error
+            return False
+    
+    async def test_copytrade_manager_logic(self):
+        """Test CopyTradeManager logic by calling it directly"""
+        print("\n🧪 Testing CopyTradeManager Logic...")
+        
+        try:
+            # Import the copy trade manager
+            import sys
+            sys.path.append('/app/backend')
+            from copytrade_service import copy_trade_manager
+            
+            # Test data for trade event
+            test_trade_data = {
+                'user': self.test_target_wallet,
+                'mint': self.test_mint,
+                'isBuy': True,
+                'solAmount': 0.1,
+                'tokenAmount': 1000000,
+                'timestamp': datetime.utcnow().isoformat()
+            }
+            
+            # First, update targets with our test target
+            test_targets = [{
+                'id': self.test_target_id,
+                'target_wallet': self.test_target_wallet,
+                'label': 'Test Trader',
+                'fixed_buy_amount_sol': 0.05,
+                'enabled': True,
+                'copy_sells': False
+            }]
+            
+            copy_trade_manager.update_targets(test_targets)
+            
+            # Test the check_trade method
+            result = copy_trade_manager.check_trade(test_trade_data)
+            
+            if result and result.get('target_wallet') == self.test_target_wallet:
+                print("✅ CopyTradeManager logic working - correctly identifies target trades")
+                return True
+            else:
+                print("❌ CopyTradeManager logic failed - no match found for target trade")
+                return False
+                
+        except Exception as e:
+            print(f"❌ CopyTradeManager logic error: {e}")
+            return False
+    
     async def run_all_tests(self):
         """Run all tests in sequence"""
         print("🚀 Starting Sniper API Tests...")
