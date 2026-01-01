@@ -39,7 +39,10 @@ class SniperAPITester:
             'sell_transaction': {'passed': False, 'error': None},
             'positions_create': {'passed': False, 'error': None},
             'positions_get': {'passed': False, 'error': None},
-            'positions_update': {'passed': False, 'error': None}
+            'positions_update': {'passed': False, 'error': None},
+            'copytrade_create': {'passed': False, 'error': None},
+            'copytrade_get': {'passed': False, 'error': None},
+            'copytrade_delete': {'passed': False, 'error': None}
         }
         
         # Test data - using realistic Solana addresses
