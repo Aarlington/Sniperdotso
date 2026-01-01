@@ -250,11 +250,24 @@ class PumpFunEventService:
                         
                     if event_data:
                         logger.info(f"Parsed {event_type}: {event_data.get('mint', 'unknown')[:20]}...")
+                        
+                        # Broadcast main event
                         await self.broadcast({
                             'type': event_type,
                             'data': event_data,
                             'timestamp': datetime.utcnow().isoformat(),
                         })
+                        
+                        # Check for Copy Trade Opportunity
+                        if event_type == 'tradeEvent':
+                            copy_opp = copy_trade_manager.check_trade(event_data)
+                            if copy_opp:
+                                logger.info(f"🎯 Copy Trade Opportunity: {copy_opp['target_wallet']} -> {copy_opp['mint']}")
+                                await self.broadcast({
+                                    'type': 'copyTradeSignal',
+                                    'data': copy_opp,
+                                    'timestamp': datetime.utcnow().isoformat(),
+                                })
                     break
                     
         except Exception as e:
