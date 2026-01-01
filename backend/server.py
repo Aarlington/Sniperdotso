@@ -251,19 +251,6 @@ async def delete_copy_target(target_id: str):
     copy_trade_manager.update_targets(all_targets)
     
     return {"status": "deleted"}
-
-            raise HTTPException(status_code=404, detail="Token not found")
-            
-        # Calculate progress percentage
-        # Bonding curve completes at ~85 SOL
-        real_sol = bonding_curve['realSolReserves'] / 1e9
-        progress = min(((85 - (85 - real_sol)) / 85) * 100, 100)
-        
-        return {
-            **bonding_curve,
-            'progress': progress,
-            'realSolReservesSOL': real_sol,
-        }
         
     except Exception as e:
         logger.error(f"Error getting token info: {e}")
