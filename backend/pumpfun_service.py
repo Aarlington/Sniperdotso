@@ -17,6 +17,7 @@ from websockets.exceptions import ConnectionClosed
 import httpx
 import base58
 from dotenv import load_dotenv
+from copytrade_service import copy_trade_manager
 
 # Load environment variables
 ROOT_DIR = Path(__file__).parent
