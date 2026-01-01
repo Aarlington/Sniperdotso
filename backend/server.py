@@ -203,6 +203,23 @@ async def get_token_info(mint: str):
         bonding_curve = await sniper_service.get_bonding_curve_account(mint_pubkey)
         
         if not bonding_curve:
+            raise HTTPException(status_code=404, detail="Token not found")
+            
+        # Calculate progress percentage
+        # Bonding curve completes at ~85 SOL
+        real_sol = bonding_curve['realSolReserves'] / 1e9
+        progress = min(((85 - (85 - real_sol)) / 85) * 100, 100)
+        
+        return {
+            **bonding_curve,
+            'progress': progress,
+            'realSolReservesSOL': real_sol,
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting token info: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 
 # Copy Trade Routes
 @api_router.get("/copytrade/targets", response_model=List[CopyTradeTarget])
