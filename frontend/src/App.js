@@ -8,6 +8,7 @@ import WalletView from './components/views/WalletView';
 import AlertsView from './components/views/AlertsView';
 import SettingsView from './components/views/SettingsView';
 import SniperPanel from './components/sniper/SniperPanel';
+import CopyTradePanel from './components/sniper/CopyTradePanel';
 import { cn } from './lib/utils';
 import './App.css';
 
