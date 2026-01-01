@@ -38,7 +38,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+from copytrade_service import copy_trade_manager
+
 # Define Models
+class CopyTradeTarget(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    target_wallet: str
+    label: Optional[str] = None
+    fixed_buy_amount_sol: float = 0.1
+    enabled: bool = True
+    copy_sells: bool = False
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
 class StatusCheck(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     client_name: str
