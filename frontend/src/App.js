@@ -42,14 +42,22 @@ function AppContent() {
         );
       case 'copytrade':
         return (
-          <div className="flex flex-col items-center justify-center py-20 space-y-4">
-            <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center">
-              <span className="text-green-400 text-2xl">CT</span>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+               <div className="p-4 bg-[#1f1f23] rounded-lg mb-4">
+                  <h3 className="text-white font-semibold mb-2">How Copy Trading Works</h3>
+                  <ul className="list-disc list-inside text-sm text-gray-400 space-y-1">
+                      <li>Add target wallets you want to copy.</li>
+                      <li>Backend monitors all Pump.fun trades in real-time.</li>
+                      <li>When a target buys, you get a signal immediately.</li>
+                      <li>Confirm the transaction in your wallet to execute the copy.</li>
+                  </ul>
+               </div>
+               <TrenchesView />
             </div>
-            <h2 className="text-xl font-bold text-white">Copy Trading</h2>
-            <p className="text-gray-500 max-w-md text-center">
-              Follow top traders and automatically copy their trades. Coming soon!
-            </p>
+            <div className="lg:col-span-1">
+              <CopyTradePanel />
+            </div>
           </div>
         );
       case 'track':
