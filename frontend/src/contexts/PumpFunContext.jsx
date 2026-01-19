@@ -286,34 +286,45 @@ export const PumpFunProvider = ({ children }) => {
     });
   }, []);
 
-  // Sync Interval: Updates the React state from the Ref at a fixed rate (e.g. 2fps)
-  // This throttles rendering while keeping data effectively real-time
+    // Sync Interval: Updates the React state from the Ref at a fixed rate (e.g. 2fps)
   useEffect(() => {
     const interval = setInterval(() => {
         if (tokensMapRef.current.size === 0) return;
 
-        // Convert map to array and sort
-        // We want the LATEST tokens. 
-        // Optimization: limit the size of the Map to prevent memory leaks?
-        // If map gets too big (>500), delete oldest?
-        
         const allTokens = Array.from(tokensMapRef.current.values());
         
-        // Sort by creation time desc (newest first)
+        // Strategy: We want to show "Trenches" (Newest) AND "Migrated" (Successful)
+        // 1. Sort by creation time for Trenches
         allTokens.sort((a, b) => b.createdAt - a.createdAt);
         
-        // Keep memory usable: hard limit map size
-        if (allTokens.length > 500) {
-            // Remove oldest from map
-            for (let i = 500; i < allTokens.length; i++) {
-                tokensMapRef.current.delete(allTokens[i].fullAddress);
-            }
+        // 2. Identify "active" migrated tokens (even if old) to keep them in view
+        const migratedTokens = allTokens.filter(t => t.isMigrated);
+        
+        // 3. Newest tokens (limit 100)
+        const newestTokens = allTokens.slice(0, 100);
+        
+        // 4. Combine: Newest 100 + Recent Migrated (limit 20)
+        // Use a Map to deduplicate
+        const displayMap = new Map();
+        newestTokens.forEach(t => displayMap.set(t.fullAddress, t));
+        migratedTokens.slice(0, 20).forEach(t => displayMap.set(t.fullAddress, t));
+        
+        const displayTokens = Array.from(displayMap.values());
+        
+        // Sort display list: Newest first
+        displayTokens.sort((a, b) => b.createdAt - a.createdAt);
+
+        // Memory Cleanup: If map grows too large (>1000), remove OLD + UNMIGRATED tokens
+        if (tokensMapRef.current.size > 1000) {
+            const keysToDelete = allTokens
+                .slice(1000) // Get tokens beyond the 1000th newest
+                .filter(t => !t.isMigrated) // Only delete if NOT migrated
+                .map(t => t.fullAddress);
+                
+            keysToDelete.forEach(k => tokensMapRef.current.delete(k));
         }
 
-        // Slice for display (show max 100)
-        const displayTokens = allTokens.slice(0, 100);
-        
-        // Update ages for display tokens only
+        // Update ages
         const now = Date.now();
         const updatedDisplayTokens = displayTokens.map(t => ({
             ...t,
