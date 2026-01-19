@@ -7,11 +7,10 @@ const PumpFunContext = createContext(null);
 
 // Cache for token metadata
 const metadataCache = new Map();
-// Track tokens we've already tried to fetch metadata for
 const metadataFetched = new Set();
 
 // Live SOL price
-let currentSolPrice = 180; // Default fallback
+let currentSolPrice = 180;
 let lastPriceFetch = 0;
 
 export const usePumpFun = () => {
@@ -22,13 +21,10 @@ export const usePumpFun = () => {
   return context;
 };
 
-// Fetch live SOL price from CoinGecko
+// Fetch live SOL price
 async function fetchSolPrice() {
   const now = Date.now();
-  // Only fetch every 30 seconds
-  if (now - lastPriceFetch < 30000) {
-    return currentSolPrice;
-  }
+  if (now - lastPriceFetch < 30000) return currentSolPrice;
   
   try {
     const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
@@ -36,7 +32,6 @@ async function fetchSolPrice() {
       const data = await response.json();
       currentSolPrice = data.solana?.usd || 180;
       lastPriceFetch = now;
-      console.log('Updated SOL price:', currentSolPrice);
     }
   } catch (error) {
     console.error('Error fetching SOL price:', error);
@@ -44,23 +39,16 @@ async function fetchSolPrice() {
   return currentSolPrice;
 }
 
-// Initialize SOL price on load
 fetchSolPrice();
 
-// Fetch token metadata from Helius DAS API with rate limiting
+// Metadata fetching
 let lastMetadataFetch = 0;
-const METADATA_FETCH_DELAY = 100; // ms between fetches
+const METADATA_FETCH_DELAY = 100;
 
 async function fetchTokenMetadata(mint) {
-  if (metadataCache.has(mint)) {
-    return metadataCache.get(mint);
-  }
+  if (metadataCache.has(mint)) return metadataCache.get(mint);
+  if (metadataFetched.has(mint)) return null;
   
-  if (metadataFetched.has(mint)) {
-    return null; // Already tried and failed
-  }
-  
-  // Rate limit
   const now = Date.now();
   const timeSinceLastFetch = now - lastMetadataFetch;
   if (timeSinceLastFetch < METADATA_FETCH_DELAY) {
@@ -86,15 +74,29 @@ async function fetchTokenMetadata(mint) {
 }
 
 export const PumpFunProvider = ({ children }) => {
+  // We use a ref for the "source of truth" to avoid constant state updates
+  // This allows us to process high-frequency events without re-rendering on every single one
+  const tokensMapRef = useRef(new Map()); // Map<mint, Token> for O(1) access
+  
+  // Exposed state
   const [tokens, setTokens] = useState([]);
-  const [recentTrades, setRecentTrades] = useState([]);
+  const [lastEvent, setLastEvent] = useState(null); // For signals like copyTrade
   const [isConnected, setIsConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
 
+  // Helper to safely update tokens map
+  const updateTokenInMap = (mint, updateFn) => {
+    const current = tokensMapRef.current.get(mint);
+    const updated = updateFn(current);
+    if (updated) {
+      tokensMapRef.current.set(mint, updated);
+    }
+  };
+
   // Process incoming token creation event
-  const handleCreateEvent = useCallback(async (event) => {
+  const handleCreateEvent = useCallback((event) => {
     const newToken = {
       id: event.mint,
       address: `${event.mint.slice(0, 4)}...${event.mint.slice(-4)}`,
@@ -118,36 +120,31 @@ export const PumpFunProvider = ({ children }) => {
       topHolders: '0%',
       change5m: '0%',
       change1h: '0%',
-      change6h: '0%',
-      change24h: '0%',
       isGreen: true,
       progress: 0,
       platform: 'pump',
       priceHistory: [],
       trades: [],
+      isMigrated: false
     };
 
-    // Fetch metadata in background
+    // Add to map
+    tokensMapRef.current.set(event.mint, newToken);
+
+    // Fetch metadata background
     fetchTokenMetadata(event.mint).then(metadata => {
       if (metadata) {
-        setTokens(prev => prev.map(t => {
-          if (t.fullAddress === event.mint) {
-            return {
-              ...t,
-              name: metadata.name || t.name,
-              symbol: metadata.symbol || t.symbol,
-              logo: metadata.image || t.logo,
-              hasTwitter: !!metadata.twitter,
-              twitter: metadata.twitter,
-              hasWebsite: !!metadata.website,
-            };
-          }
-          return t;
-        }));
+        updateTokenInMap(event.mint, (t) => t ? ({
+          ...t,
+          name: metadata.name || t.name,
+          symbol: metadata.symbol || t.symbol,
+          logo: metadata.image || t.logo,
+          hasTwitter: !!metadata.twitter,
+          twitter: metadata.twitter,
+          hasWebsite: !!metadata.website,
+        }) : null);
       }
     });
-
-    setTokens(prev => [newToken, ...prev].slice(0, 100)); // Keep last 100 tokens
   }, []);
 
   // Process incoming trade event
@@ -155,8 +152,8 @@ export const PumpFunProvider = ({ children }) => {
     const trade = {
       id: `${event.mint}-${event.timestamp}`,
       mint: event.mint,
-      solAmount: Number(event.solAmount) / 1e9, // Convert lamports to SOL
-      tokenAmount: Number(event.tokenAmount) / 1e6, // Convert to token decimals
+      solAmount: Number(event.solAmount) / 1e9,
+      tokenAmount: Number(event.tokenAmount) / 1e6,
       isBuy: event.isBuy,
       user: event.user,
       timestamp: event.timestamp * 1000,
@@ -166,297 +163,231 @@ export const PumpFunProvider = ({ children }) => {
       realTokenReserves: Number(event.realTokenReserves) / 1e6,
     };
 
-    // Get live SOL price (updates every 30s)
     const SOL_PRICE_USD = currentSolPrice;
-    
-    // Calculate price (in SOL per token)
-    // Using virtual reserves for accurate bonding curve price
     const priceInSol = trade.virtualSolReserves / trade.virtualTokenReserves;
     const priceInUsd = priceInSol * SOL_PRICE_USD;
-    
-    // Market cap calculation for bonding curve tokens
-    // Use FDV (Fully Diluted Value) = price * 1B tokens
-    // This is the standard way pump.fun displays MC
     const marketCapUsd = priceInSol * 1_000_000_000 * SOL_PRICE_USD;
-    
-    // Volume in USD
     const tradeVolumeUsd = trade.solAmount * SOL_PRICE_USD;
-    
-    // Progress to bonding completion
-    // Bonding curve starts with ~30 virtual SOL and needs to accumulate ~85 real SOL
-    // Progress is based on how much real SOL is in the curve
     const progress = Math.min((trade.realSolReserves / 85) * 100, 100);
-    
-    // Check if token is graduating (progress >= 99% or realSolReserves >= 84)
     const isGraduating = progress >= 99 || trade.realSolReserves >= 84;
 
-    // Update token with new trade data OR create new token if it doesn't exist
-    setTokens(prev => {
-      const existingToken = prev.find(t => t.fullAddress === event.mint);
-      
-      if (existingToken) {
-        // Update existing token
-        return prev.map(token => {
-          if (token.fullAddress === event.mint) {
-            const now = Date.now();
-            const newPricePoint = {
-              time: trade.timestamp,
-              price: priceInSol,
-              priceUsd: priceInUsd,
-              volume: tradeVolumeUsd,
-            };
-            
-            // Calculate price changes from history
-            const updatedHistory = [...token.priceHistory, newPricePoint].slice(-200);
-            const { change5m, change1h } = calculatePriceChanges(updatedHistory, now);
-            
-            // Track unique traders for holder estimate
-            const uniqueTraders = new Set([
-              ...(token.uniqueTraders || []),
-              event.user
-            ]);
-            
-            // Accumulate volume properly
-            const totalVolumeUsd = (token.totalVolumeUsd || 0) + tradeVolumeUsd;
-            
-            // Mark as migrated if progress hits 100%
-            const shouldMigrate = progress >= 100 || (isGraduating && !token.isMigrated);
-            
-            return {
-              ...token,
-              marketCap: formatMarketCapUsd(marketCapUsd),
-              volume: formatVolumeUsd(totalVolumeUsd),
-              totalVolumeUsd: totalVolumeUsd,
-              liquidity: trade.realSolReserves.toFixed(2),
-              txCount: token.txCount + 1,
-              holders: uniqueTraders.size,
-              uniqueTraders: Array.from(uniqueTraders),
-              progress: Math.min(Math.max(progress, 0), 100),
-              priceHistory: updatedHistory,
-              trades: [trade, ...token.trades].slice(0, 50),
-              lastPrice: priceInSol,
-              lastPriceUsd: priceInUsd,
-              lastTrade: trade,
-              change5m: change5m,
-              change1h: change1h,
-              isMigrated: shouldMigrate ? true : token.isMigrated,
-              graduatedAt: shouldMigrate && !token.graduatedAt ? Date.now() : token.graduatedAt,
-              isGreen: trade.isBuy,
-            };
-          }
-          return token;
+    const existingToken = tokensMapRef.current.get(event.mint);
+
+    if (existingToken) {
+        // Update existing
+        const now = Date.now();
+        const newPricePoint = {
+            time: trade.timestamp,
+            price: priceInSol,
+            priceUsd: priceInUsd,
+            volume: tradeVolumeUsd,
+        };
+        const updatedHistory = [...existingToken.priceHistory, newPricePoint].slice(-50); // Reduced history size
+        const { change5m, change1h } = calculatePriceChanges(updatedHistory, now);
+        
+        // Simple unique traders tracking (Set is not serializable easily, so we just use length for now or keep separate)
+        // For performance, we'll just increment holder count if it's a new wallet in a simplified way
+        // Or keep the Set in the object but be careful with memory. 
+        // Let's just assume uniqueTraders is a Set.
+        if (!existingToken.uniqueTradersSet) existingToken.uniqueTradersSet = new Set(existingToken.uniqueTraders || []);
+        existingToken.uniqueTradersSet.add(event.user);
+
+        const totalVolumeUsd = (existingToken.totalVolumeUsd || 0) + tradeVolumeUsd;
+        const shouldMigrate = progress >= 100 || (isGraduating && !existingToken.isMigrated);
+
+        tokensMapRef.current.set(event.mint, {
+            ...existingToken,
+            marketCap: formatMarketCapUsd(marketCapUsd),
+            volume: formatVolumeUsd(totalVolumeUsd),
+            totalVolumeUsd: totalVolumeUsd,
+            liquidity: trade.realSolReserves.toFixed(2),
+            txCount: existingToken.txCount + 1,
+            holders: existingToken.uniqueTradersSet.size,
+            progress: Math.min(Math.max(progress, 0), 100),
+            priceHistory: updatedHistory,
+            trades: [trade, ...existingToken.trades].slice(0, 20), // Reduced trades size
+            lastPrice: priceInSol,
+            lastPriceUsd: priceInUsd,
+            lastTrade: trade,
+            change5m: change5m,
+            change1h: change1h,
+            isMigrated: shouldMigrate ? true : existingToken.isMigrated,
+            graduatedAt: shouldMigrate && !existingToken.graduatedAt ? Date.now() : existingToken.graduatedAt,
+            isGreen: trade.isBuy,
         });
-      } else {
-        // Create new token from trade event
-        const SOL_PRICE_USD = currentSolPrice;
-        const marketCapUsd = priceInSol * 1_000_000_000 * SOL_PRICE_USD;
+    } else {
+        // Create new from trade (likely missed create event or existing token)
+        const isMigrated = progress >= 100 || isGraduating;
         
         const newToken = {
-          id: event.mint,
-          address: `${event.mint.slice(0, 4)}...${event.mint.slice(-4)}`,
-          fullAddress: event.mint,
-          symbol: event.mint.slice(0, 6).toUpperCase(),
-          name: `Token ${event.mint.slice(0, 8)}`,
-          logo: null,
-          age: '0s',
-          createdAt: Date.now(),
-          twitter: null,
-          hasTwitter: false,
-          hasWebsite: false,
-          bondingCurve: null,
-          creator: event.user,
-          volume: formatVolumeUsd(tradeVolumeUsd),
-          totalVolumeUsd: tradeVolumeUsd,
-          marketCap: formatMarketCapUsd(marketCapUsd),
-          liquidity: trade.realSolReserves.toFixed(2),
-          netFlow: trade.isBuy ? `+$${tradeVolumeUsd.toFixed(0)}` : `-$${tradeVolumeUsd.toFixed(0)}`,
-          txCount: 1,
-          holders: 1,
-          uniqueTraders: [event.user],
-          topHolders: '0%',
-          change5m: '0%',
-          change1h: '0%',
-          change6h: '0%',
-          change24h: '0%',
-          isGreen: trade.isBuy,
-          progress: Math.min(Math.max(progress, 0), 100),
-          platform: 'pump',
-          priceHistory: [{ time: trade.timestamp, price: priceInSol, priceUsd: priceInUsd, volume: tradeVolumeUsd }],
-          trades: [trade],
-          lastPrice: priceInSol,
-          lastPriceUsd: priceInUsd,
-          lastTrade: trade,
-          metadataLoading: true,
+            id: event.mint,
+            address: `${event.mint.slice(0, 4)}...${event.mint.slice(-4)}`,
+            fullAddress: event.mint,
+            symbol: event.mint.slice(0, 6).toUpperCase(),
+            name: `Token ${event.mint.slice(0, 8)}`,
+            logo: null,
+            age: '0s',
+            createdAt: Date.now(),
+            twitter: null,
+            hasTwitter: false,
+            hasWebsite: false,
+            creator: event.user,
+            volume: formatVolumeUsd(tradeVolumeUsd),
+            totalVolumeUsd: tradeVolumeUsd,
+            marketCap: formatMarketCapUsd(marketCapUsd),
+            liquidity: trade.realSolReserves.toFixed(2),
+            netFlow: trade.isBuy ? `+$${tradeVolumeUsd.toFixed(0)}` : `-$${tradeVolumeUsd.toFixed(0)}`,
+            txCount: 1,
+            holders: 1,
+            uniqueTradersSet: new Set([event.user]),
+            topHolders: '0%',
+            change5m: '0%',
+            change1h: '0%',
+            isGreen: trade.isBuy,
+            progress: Math.min(Math.max(progress, 0), 100),
+            priceHistory: [{ time: trade.timestamp, price: priceInSol, priceUsd: priceInUsd, volume: tradeVolumeUsd }],
+            trades: [trade],
+            lastPrice: priceInSol,
+            lastPriceUsd: priceInUsd,
+            lastTrade: trade,
+            isMigrated: isMigrated,
+            graduatedAt: isMigrated ? Date.now() : null
         };
-        
-        // Fetch metadata in background for new tokens
-        fetchTokenMetadata(event.mint).then(metadata => {
-          if (metadata && !metadata.error) {
-            setTokens(prev => prev.map(t => {
-              if (t.fullAddress === event.mint) {
-                return {
-                  ...t,
-                  name: metadata.name || t.name,
-                  symbol: metadata.symbol || t.symbol,
-                  logo: metadata.image || t.logo,
-                  hasTwitter: !!metadata.twitter,
-                  twitter: metadata.twitter,
-                  hasWebsite: !!metadata.website,
-                  metadataLoading: false,
-                };
-              }
-              return t;
-            }));
-          }
-        });
-        
-        console.log('Created token from trade:', newToken.fullAddress.slice(0, 10));
-        return [newToken, ...prev].slice(0, 100);
-      }
-    });
 
-    // Add to recent trades
-    setRecentTrades(prev => [trade, ...prev].slice(0, 50));
+        tokensMapRef.current.set(event.mint, newToken);
+
+        // Fetch metadata
+        fetchTokenMetadata(event.mint).then(metadata => {
+            if (metadata && !metadata.error) {
+                updateTokenInMap(event.mint, (t) => t ? ({
+                    ...t,
+                    name: metadata.name || t.name,
+                    symbol: metadata.symbol || t.symbol,
+                    logo: metadata.image || t.logo,
+                    hasTwitter: !!metadata.twitter,
+                    twitter: metadata.twitter,
+                    hasWebsite: !!metadata.website,
+                }) : null);
+            }
+        });
+    }
   }, []);
 
-  // Process bonding curve completion event
   const handleCompleteEvent = useCallback((event) => {
     console.log('🎉 Token graduated:', event.mint);
-    setTokens(prev => prev.map(token => {
-      if (token.fullAddress === event.mint) {
+    updateTokenInMap(event.mint, (token) => {
+        if (!token) return null;
         return {
-          ...token,
-          progress: 100,
-          isMigrated: true,
-          graduatedAt: Date.now(),
+            ...token,
+            progress: 100,
+            isMigrated: true,
+            graduatedAt: Date.now(),
         };
-      }
-      return token;
-    }));
+    });
+  }, []);
+
+  // Sync Interval: Updates the React state from the Ref at a fixed rate (e.g. 2fps)
+  // This throttles rendering while keeping data effectively real-time
+  useEffect(() => {
+    const interval = setInterval(() => {
+        if (tokensMapRef.current.size === 0) return;
+
+        // Convert map to array and sort
+        // We want the LATEST tokens. 
+        // Optimization: limit the size of the Map to prevent memory leaks?
+        // If map gets too big (>500), delete oldest?
+        
+        const allTokens = Array.from(tokensMapRef.current.values());
+        
+        // Sort by creation time desc (newest first)
+        allTokens.sort((a, b) => b.createdAt - a.createdAt);
+        
+        // Keep memory usable: hard limit map size
+        if (allTokens.length > 500) {
+            // Remove oldest from map
+            for (let i = 500; i < allTokens.length; i++) {
+                tokensMapRef.current.delete(allTokens[i].fullAddress);
+            }
+        }
+
+        // Slice for display (show max 100)
+        const displayTokens = allTokens.slice(0, 100);
+        
+        // Update ages for display tokens only
+        const now = Date.now();
+        const updatedDisplayTokens = displayTokens.map(t => ({
+            ...t,
+            age: formatAge(now - t.createdAt)
+        }));
+
+        setTokens(updatedDisplayTokens);
+    }, 500); // 500ms throttling
+
+    return () => clearInterval(interval);
   }, []);
 
   // Connect to WebSocket
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
-
     setConnectionStatus('connecting');
     
     try {
       wsRef.current = new WebSocket(`${WS_URL}/api/ws/pumpfun`);
-
       wsRef.current.onopen = () => {
-        console.log('WebSocket connected to PumpFun events');
+        console.log('WebSocket connected');
         setIsConnected(true);
         setConnectionStatus('connected');
       };
 
       wsRef.current.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data);
-          console.log('Received WS message:', data.type, data.data?.mint?.slice(0, 10) || '');
+          const msg = JSON.parse(event.data);
           
-          switch (data.type) {
-            case 'createEvent':
-              console.log('New token created:', data.data.symbol, data.data.mint);
-              handleCreateEvent(data.data);
-              break;
-            case 'tradeEvent':
-              handleTradeEvent(data.data);
-              break;
-            case 'completeEvent':
-              handleCompleteEvent(data.data);
-              break;
-            case 'ping':
-              wsRef.current?.send(JSON.stringify({ type: 'pong' }));
-              break;
-            case 'connected':
-              console.log('Connection confirmed by server');
-              break;
-            default:
-              console.log('Unknown event type:', data.type);
+          if (msg.type === 'copyTradeSignal') {
+             setLastEvent({ type: 'copyTradeSignal', data: msg.data });
+             return;
           }
+
+          if (msg.type === 'createEvent') handleCreateEvent(msg.data);
+          else if (msg.type === 'tradeEvent') handleTradeEvent(msg.data);
+          else if (msg.type === 'completeEvent') handleCompleteEvent(msg.data);
+          else if (msg.type === 'ping') wsRef.current?.send(JSON.stringify({ type: 'pong' }));
+
         } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
+          console.error('WS Parse Error:', error);
         }
       };
 
       wsRef.current.onclose = () => {
-        console.log('WebSocket disconnected');
         setIsConnected(false);
         setConnectionStatus('disconnected');
-        
-        // Attempt to reconnect after 3 seconds
-        reconnectTimeoutRef.current = setTimeout(() => {
-          connect();
-        }, 3000);
-      };
-
-      wsRef.current.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        setConnectionStatus('error');
+        reconnectTimeoutRef.current = setTimeout(connect, 3000);
       };
     } catch (error) {
-      console.error('Failed to create WebSocket:', error);
       setConnectionStatus('error');
     }
   }, [handleCreateEvent, handleTradeEvent, handleCompleteEvent]);
 
-  // Disconnect from WebSocket
   const disconnect = useCallback(() => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-    }
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
+    if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+    wsRef.current?.close();
     setIsConnected(false);
     setConnectionStatus('disconnected');
   }, []);
 
-  // Auto-connect on mount
   useEffect(() => {
     connect();
     return () => disconnect();
   }, [connect, disconnect]);
 
-  // Update token ages periodically - use ref to avoid race conditions
-  const tokensRef = useRef(tokens);
-  tokensRef.current = tokens;
-  
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = Date.now();
-      setTokens(prev => {
-        // Only update if we have tokens
-        if (prev.length === 0) return prev;
-        
-        // Check if any age actually changed (avoid unnecessary updates)
-        let hasChanges = false;
-        const updated = prev.map(token => {
-          const newAge = formatAge(now - token.createdAt);
-          if (newAge !== token.age) {
-            hasChanges = true;
-            return { ...token, age: newAge };
-          }
-          return token;
-        });
-        
-        return hasChanges ? updated : prev;
-      });
-    }, 2000); // Update every 2 seconds instead of 1 to reduce load
-
-    return () => clearInterval(interval);
-  }, []);
-
   const value = {
     tokens,
-    recentTrades,
     isConnected,
     connectionStatus,
     connect,
     disconnect,
     solPrice: currentSolPrice,
+    lastEvent
   };
 
   return (
@@ -466,71 +397,40 @@ export const PumpFunProvider = ({ children }) => {
   );
 };
 
-// Helper functions
+// Helpers
 function formatAge(ms) {
-  const seconds = Math.floor(ms / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  return `${days}d`;
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  return `${h}h`;
 }
 
-function formatMarketCapUsd(value) {
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `$${(value / 1_000).toFixed(1)}K`;
-  return `$${value.toFixed(0)}`;
+function formatMarketCapUsd(val) {
+  if (val >= 1e6) return `$${(val/1e6).toFixed(1)}M`;
+  if (val >= 1e3) return `$${(val/1e3).toFixed(1)}K`;
+  return `$${val.toFixed(0)}`;
 }
 
-function formatVolumeUsd(value) {
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `$${(value / 1_000).toFixed(1)}K`;
-  if (value >= 1) return `$${value.toFixed(0)}`;
-  return `$${value.toFixed(2)}`;
+function formatVolumeUsd(val) {
+  if (val >= 1e6) return `$${(val/1e6).toFixed(1)}M`;
+  if (val >= 1e3) return `$${(val/1e3).toFixed(1)}K`;
+  return `$${val.toFixed(2)}`;
 }
 
-function formatMarketCap(value) {
-  if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
-  if (value >= 1000) return `$${(value / 1000).toFixed(1)}K`;
-  return `$${value.toFixed(0)}`;
-}
-
-function formatVolume(value) {
-  if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
-  if (value >= 1000) return `$${(value / 1000).toFixed(1)}K`;
-  return `$${value.toFixed(2)}`;
-}
-
-function parseVolume(str) {
-  if (!str || str === '$0') return 0;
-  const num = parseFloat(str.replace('$', '').replace('K', '000').replace('M', '000000'));
-  return isNaN(num) ? 0 : num;
-}
-
-function calculatePriceChanges(priceHistory, now) {
-  if (!priceHistory || priceHistory.length < 2) {
-    return { change5m: '0%', change1h: '0%' };
-  }
+function calculatePriceChanges(history, now) {
+  if (!history || history.length < 2) return { change5m: '0%', change1h: '0%' };
+  const current = history[history.length - 1].price;
+  const p5m = history.find(p => p.time >= now - 300000)?.price || history[0].price;
+  const p1h = history.find(p => p.time >= now - 3600000)?.price || history[0].price;
   
-  const currentPrice = priceHistory[priceHistory.length - 1].price;
-  
-  // Find price from 5 minutes ago
-  const fiveMinAgo = now - 5 * 60 * 1000;
-  const price5m = priceHistory.find(p => p.time >= fiveMinAgo)?.price || priceHistory[0].price;
-  
-  // Find price from 1 hour ago
-  const oneHourAgo = now - 60 * 60 * 1000;
-  const price1h = priceHistory.find(p => p.time >= oneHourAgo)?.price || priceHistory[0].price;
-  
-  // Calculate percentage changes
-  const change5m = price5m > 0 ? ((currentPrice - price5m) / price5m) * 100 : 0;
-  const change1h = price1h > 0 ? ((currentPrice - price1h) / price1h) * 100 : 0;
+  const c5 = p5m > 0 ? ((current - p5m) / p5m) * 100 : 0;
+  const c1 = p1h > 0 ? ((current - p1h) / p1h) * 100 : 0;
   
   return {
-    change5m: `${change5m >= 0 ? '+' : ''}${change5m.toFixed(0)}%`,
-    change1h: `${change1h >= 0 ? '+' : ''}${change1h.toFixed(0)}%`,
+    change5m: `${c5 >= 0 ? '+' : ''}${c5.toFixed(0)}%`,
+    change1h: `${c1 >= 0 ? '+' : ''}${c1.toFixed(0)}%`
   };
 }
 
