@@ -95,6 +95,79 @@ export const PumpFunProvider = ({ children }) => {
     }
   };
 
+  // Fetch migrated tokens on mount
+  useEffect(() => {
+    const fetchMigrated = async () => {
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/tokens/migrated`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.mints && Array.isArray(data.mints)) {
+            data.mints.forEach(mint => {
+              // Only add if not exists
+              if (!tokensMapRef.current.has(mint)) {
+                const newToken = {
+                    id: mint,
+                    address: `${mint.slice(0, 4)}...${mint.slice(-4)}`,
+                    fullAddress: mint,
+                    symbol: '...', 
+                    name: 'Loading...',
+                    logo: null,
+                    age: 'N/A', 
+                    createdAt: Date.now() - 3600000, // Assume 1h ago
+                    twitter: null,
+                    hasTwitter: false,
+                    hasWebsite: false,
+                    creator: 'System',
+                    volume: '$0',
+                    totalVolumeUsd: 0,
+                    marketCap: '$69K', 
+                    liquidity: '85.00',
+                    netFlow: '$0',
+                    txCount: 0,
+                    holders: 0,
+                    uniqueTradersSet: new Set(),
+                    topHolders: '0%',
+                    change5m: '0%',
+                    change1h: '0%',
+                    isGreen: true,
+                    progress: 100,
+                    priceHistory: [],
+                    trades: [],
+                    lastPrice: 0,
+                    lastPriceUsd: 0,
+                    lastTrade: null,
+                    isMigrated: true,
+                    graduatedAt: Date.now()
+                };
+                tokensMapRef.current.set(mint, newToken);
+                
+                // Fetch metadata
+                fetchTokenMetadata(mint).then(metadata => {
+                    if (metadata && !metadata.error) {
+                        updateTokenInMap(mint, (t) => t ? ({
+                            ...t,
+                            name: metadata.name || t.name,
+                            symbol: metadata.symbol || t.symbol,
+                            logo: metadata.image || t.logo,
+                            hasTwitter: !!metadata.twitter,
+                            twitter: metadata.twitter,
+                            hasWebsite: !!metadata.website,
+                        }) : null);
+                    }
+                });
+              }
+            });
+          }
+        }
+      } catch (e) {
+        console.error("Failed to fetch migrated tokens:", e);
+      }
+    };
+    
+    fetchMigrated();
+  }, []);
+
   // Process incoming token creation event
   const handleCreateEvent = useCallback((event) => {
     const newToken = {
