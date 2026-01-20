@@ -400,6 +400,74 @@ class SniperService:
         ]
         
         return Instruction(ASSOCIATED_TOKEN_PROGRAM_ID, bytes(), accounts)
+    async def get_recent_migrations(self, limit: int = 20) -> list[str]:
+        """Fetch recent migrations from Helius"""
+        MIGRATION_ACCOUNT = "39azUYFWPz3VHgKCf3VChUwbpURdCHRxjWVowf5jUJjg"
+        
+        try:
+            # 1. Get Signatures
+            response = await self.http_client.post(
+                HELIUS_RPC_URL,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "getSignaturesForAddress",
+                    "params": [
+                        MIGRATION_ACCOUNT,
+                        {"limit": limit}
+                    ]
+                }
+            )
+            data = response.json()
+            if 'error' in data:
+                logger.error(f"Helius error: {data['error']}")
+                return []
+                
+            signatures = [item['signature'] for item in data.get('result', [])]
+            if not signatures:
+                return []
+                
+            # 2. Get Transactions (Loop for now, batching is complex with current client)
+            mints = set()
+            
+            # Optimization: Parallel fetch? For simplicity, sequential or small batch
+            # Let's do sequential but simple.
+            
+            for sig in signatures:
+                tx_resp = await self.http_client.post(
+                    HELIUS_RPC_URL,
+                    json={
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "getTransaction",
+                        "params": [
+                            sig,
+                            {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}
+                        ]
+                    }
+                )
+                tx_data = tx_resp.json()
+                result = tx_data.get('result')
+                
+                if not result:
+                    continue
+                    
+                # 3. Parse Mint from Token Balances
+                # Logic: Find the preTokenBalance that is NOT SOL (So111...)
+                pre_balances = result.get('meta', {}).get('preTokenBalances', [])
+                
+                for balance in pre_balances:
+                    mint = balance.get('mint')
+                    # Exclude Wrapped SOL
+                    if mint != "So11111111111111111111111111111111111111112":
+                        mints.add(mint)
+                        break # Assume one migration per tx
+                        
+            return list(mints)
+            
+        except Exception as e:
+            logger.error(f"Error fetching migrations: {e}")
+            return []
 
 
 # Global instance
