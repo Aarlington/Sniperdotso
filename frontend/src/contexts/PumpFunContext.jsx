@@ -206,7 +206,7 @@ export const PumpFunProvider = ({ children }) => {
             // uniqueTradersSet: existingToken.uniqueTradersSet, // Keep ref but don't clone
             progress: Math.min(Math.max(progress, 0), 100),
             priceHistory: updatedHistory,
-            trades: [trade, ...existingToken.trades].slice(0, 20), // Reduced trades size
+            trades: [trade, ...existingToken.trades].slice(0, 10), // Keep very few trades
             lastPrice: priceInSol,
             lastPriceUsd: priceInUsd,
             lastTrade: trade,
