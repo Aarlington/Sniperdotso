@@ -47,14 +47,12 @@ const TrenchesView = () => {
     const almostBonded = allTokens.filter(t => (t.progress || 0) >= 80 && (t.progress || 0) < 100 && !t.isMigrated);
     const migrated = allTokens.filter(t => (t.progress || 0) >= 100 || t.isMigrated);
     
-    // For migrated tab: show live migrated tokens if any, otherwise show message
-    // Don't fall back to mock data - show empty state instead
     return {
-      trenches: trenches.length > 0 ? trenches : mockTokens.trenches,
-      almostBonded: almostBonded.length > 0 ? almostBonded : mockTokens.almostBonded,
-      migrated: migrated, // Don't fall back to mock - show actual migrations only
+      trenches: trenches.length > 0 ? trenches : (liveTokens.length > 0 ? [] : mockTokens.trenches),
+      almostBonded: almostBonded.length > 0 ? almostBonded : (liveTokens.length > 0 ? [] : mockTokens.almostBonded),
+      migrated: migrated, 
     };
-  }, [allTokens]);
+  }, [allTokens, liveTokens.length]);
 
   const tabs = [
     { id: 'trenches', label: 'Trenches', icon: TrendingUp, tokens: tokensByTab.trenches },
