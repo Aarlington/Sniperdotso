@@ -212,7 +212,7 @@ export const PumpFunProvider = ({ children }) => {
             lastTrade: trade,
             change5m: change5m,
             change1h: change1h,
-            isMigrated: shouldMigrate ? true : existingToken.isMigrated,
+            isMigrated: shouldMigrate,
             graduatedAt: shouldMigrate && !existingToken.graduatedAt ? Date.now() : existingToken.graduatedAt,
             isGreen: trade.isBuy,
         });
