@@ -176,11 +176,10 @@ export const PumpFunProvider = ({ children }) => {
     if (existingToken) {
         // Update existing
         const now = Date.now();
+        // Optimize: Only store simplified price point
         const newPricePoint = {
             time: trade.timestamp,
             price: priceInSol,
-            priceUsd: priceInUsd,
-            volume: tradeVolumeUsd,
         };
         const updatedHistory = [...existingToken.priceHistory, newPricePoint].slice(-50); // Reduced history size
         const { change5m, change1h } = calculatePriceChanges(updatedHistory, now);
