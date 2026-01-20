@@ -220,6 +220,7 @@ export const PumpFunProvider = ({ children }) => {
       symbol: event.symbol || event.mint.slice(0, 6).toUpperCase(),
       name: event.name || `Token ${event.mint.slice(0, 8)}`,
       logo: event.uri ? `https://pump.fun/image/${event.mint}` : null,
+      gmgnLink: `https://gmgn.ai/sol/token/${event.mint}`,
       age: '0s',
       createdAt: Date.now(),
       twitter: null,
