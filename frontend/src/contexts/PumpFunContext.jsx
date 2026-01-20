@@ -181,7 +181,8 @@ export const PumpFunProvider = ({ children }) => {
             time: trade.timestamp,
             price: priceInSol,
         };
-        const updatedHistory = [...existingToken.priceHistory, newPricePoint].slice(-50); // Reduced history size
+        // Reduce history size further to save memory
+        const updatedHistory = [...existingToken.priceHistory, newPricePoint].slice(-20);
         const { change5m, change1h } = calculatePriceChanges(updatedHistory, now);
         
         // Simple unique traders tracking (Set is not serializable easily, so we just use length for now or keep separate)
