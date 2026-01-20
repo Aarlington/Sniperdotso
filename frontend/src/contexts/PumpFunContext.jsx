@@ -202,7 +202,8 @@ export const PumpFunProvider = ({ children }) => {
             totalVolumeUsd: totalVolumeUsd,
             liquidity: trade.realSolReserves.toFixed(2),
             txCount: existingToken.txCount + 1,
-            holders: existingToken.uniqueTradersSet.size,
+            holders: newHolders,
+            // uniqueTradersSet: existingToken.uniqueTradersSet, // Keep ref but don't clone
             progress: Math.min(Math.max(progress, 0), 100),
             priceHistory: updatedHistory,
             trades: [trade, ...existingToken.trades].slice(0, 20), // Reduced trades size
