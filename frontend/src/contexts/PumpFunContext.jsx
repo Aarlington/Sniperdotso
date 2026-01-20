@@ -73,6 +73,32 @@ async function fetchTokenMetadata(mint) {
   return null;
 }
 
+// Fetch Market Data from DexScreener (For migrated tokens)
+async function fetchDexData(mint) {
+    try {
+        const response = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${mint}`);
+        if (response.ok) {
+            const data = await response.json();
+            if (data.pairs && data.pairs.length > 0) {
+                // Find best pair (usually Raydium with highest liquidity)
+                const pair = data.pairs.sort((a, b) => b.liquidity?.usd - a.liquidity?.usd)[0];
+                return {
+                    marketCap: pair.fdv || pair.marketCap,
+                    liquidity: pair.liquidity?.usd,
+                    priceUsd: parseFloat(pair.priceUsd),
+                    priceSol: parseFloat(pair.priceNative),
+                    volume24h: pair.volume?.h24,
+                    priceChange5m: pair.priceChange?.m5,
+                    priceChange1h: pair.priceChange?.h1
+                };
+            }
+        }
+    } catch (e) {
+        console.error("DexScreener fetch error:", e);
+    }
+    return null;
+}
+
 export const PumpFunProvider = ({ children }) => {
   // We use a ref for the "source of truth" to avoid constant state updates
   // This allows us to process high-frequency events without re-rendering on every single one
@@ -114,15 +140,15 @@ export const PumpFunProvider = ({ children }) => {
                     name: 'Loading...',
                     logo: null,
                     age: 'N/A', 
-                    createdAt: Date.now() - 3600000, // Assume 1h ago
+                    createdAt: Date.now() - 3600000, 
                     twitter: null,
                     hasTwitter: false,
                     hasWebsite: false,
                     creator: 'System',
                     volume: '$0',
                     totalVolumeUsd: 0,
-                    marketCap: '$69K', 
-                    liquidity: '85.00',
+                    marketCap: '$69K', // Fallback
+                    liquidity: '85.00', // Fallback
                     netFlow: '$0',
                     txCount: 0,
                     holders: 0,
@@ -153,6 +179,23 @@ export const PumpFunProvider = ({ children }) => {
                             hasTwitter: !!metadata.twitter,
                             twitter: metadata.twitter,
                             hasWebsite: !!metadata.website,
+                        }) : null);
+                    }
+                });
+
+                // Fetch Real Market Data (DexScreener)
+                fetchDexData(mint).then(marketData => {
+                    if (marketData) {
+                        updateTokenInMap(mint, (t) => t ? ({
+                            ...t,
+                            marketCap: formatMarketCapUsd(marketData.marketCap),
+                            liquidity: marketData.liquidity ? `$${(marketData.liquidity/1000).toFixed(1)}K` : t.liquidity,
+                            lastPrice: marketData.priceSol,
+                            lastPriceUsd: marketData.priceUsd,
+                            volume: formatVolumeUsd(marketData.volume24h),
+                            change5m: `${marketData.priceChange5m || 0}%`,
+                            change1h: `${marketData.priceChange1h || 0}%`,
+                            isGreen: (marketData.priceChange1h || 0) >= 0
                         }) : null);
                     }
                 });
@@ -410,6 +453,23 @@ export const PumpFunProvider = ({ children }) => {
                     hasTwitter: !!metadata.twitter,
                     twitter: metadata.twitter,
                     hasWebsite: !!metadata.website,
+                }) : null);
+            }
+        });
+
+        // Fetch Dex Data for new migrated token
+        fetchDexData(event.mint).then(marketData => {
+            if (marketData) {
+                updateTokenInMap(event.mint, (t) => t ? ({
+                    ...t,
+                    marketCap: formatMarketCapUsd(marketData.marketCap),
+                    liquidity: marketData.liquidity ? `$${(marketData.liquidity/1000).toFixed(1)}K` : t.liquidity,
+                    lastPrice: marketData.priceSol,
+                    lastPriceUsd: marketData.priceUsd,
+                    volume: formatVolumeUsd(marketData.volume24h),
+                    change5m: `${marketData.priceChange5m || 0}%`,
+                    change1h: `${marketData.priceChange1h || 0}%`,
+                    isGreen: (marketData.priceChange1h || 0) >= 0
                 }) : null);
             }
         });
