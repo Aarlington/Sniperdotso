@@ -277,15 +277,70 @@ export const PumpFunProvider = ({ children }) => {
 
   const handleCompleteEvent = useCallback((event) => {
     console.log('🎉 Token graduated:', event.mint);
-    updateTokenInMap(event.mint, (token) => {
-        if (!token) return null;
-        return {
+    
+    const existingToken = tokensMapRef.current.get(event.mint);
+    
+    if (existingToken) {
+        updateTokenInMap(event.mint, (token) => ({
             ...token,
             progress: 100,
             isMigrated: true,
             graduatedAt: Date.now(),
+        }));
+    } else {
+        // Create new token entry if we missed the creation/trades
+        const newToken = {
+            id: event.mint,
+            address: `${event.mint.slice(0, 4)}...${event.mint.slice(-4)}`,
+            fullAddress: event.mint,
+            symbol: '...', // Will fetch
+            name: 'Loading...',
+            logo: null,
+            age: '0s', // Unknown creation time
+            createdAt: Date.now(),
+            twitter: null,
+            hasTwitter: false,
+            hasWebsite: false,
+            creator: event.user,
+            volume: '$0', // Unknown volume
+            totalVolumeUsd: 0,
+            marketCap: '$69K', // Standard migration MC
+            liquidity: '85.00',
+            netFlow: '$0',
+            txCount: 0,
+            holders: 0,
+            uniqueTradersSet: new Set(),
+            topHolders: '0%',
+            change5m: '0%',
+            change1h: '0%',
+            isGreen: true,
+            progress: 100,
+            priceHistory: [],
+            trades: [],
+            lastPrice: 0,
+            lastPriceUsd: 0,
+            lastTrade: null,
+            isMigrated: true,
+            graduatedAt: Date.now()
         };
-    });
+        
+        tokensMapRef.current.set(event.mint, newToken);
+        
+        // Fetch metadata
+        fetchTokenMetadata(event.mint).then(metadata => {
+            if (metadata && !metadata.error) {
+                updateTokenInMap(event.mint, (t) => t ? ({
+                    ...t,
+                    name: metadata.name || t.name,
+                    symbol: metadata.symbol || t.symbol,
+                    logo: metadata.image || t.logo,
+                    hasTwitter: !!metadata.twitter,
+                    twitter: metadata.twitter,
+                    hasWebsite: !!metadata.website,
+                }) : null);
+            }
+        });
+    }
   }, []);
 
     // Sync Interval: Updates the React state from the Ref at a fixed rate (e.g. 2fps)
