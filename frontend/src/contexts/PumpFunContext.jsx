@@ -365,7 +365,7 @@ export const PumpFunProvider = ({ children }) => {
           else if (msg.type === 'ping') wsRef.current?.send(JSON.stringify({ type: 'pong' }));
 
         } catch (error) {
-          console.error('WS Parse Error:', error);
+          // console.error('WS Parse Error:', error);
         }
       };
 
