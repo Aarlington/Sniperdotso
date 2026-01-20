@@ -253,6 +253,16 @@ async def delete_copy_target(target_id: str):
     return {"status": "deleted"}
 
 
+@api_router.get("/tokens/migrated")
+async def get_migrated_tokens():
+    """Fetch recently migrated tokens"""
+    try:
+        mints = await sniper_service.get_recent_migrations()
+        return {"mints": mints}
+    except Exception as e:
+        logger.error(f"Error fetching migrated tokens: {e}")
+        return {"mints": []}
+
 @api_router.get("/sniper/metadata/{mint}")
 async def get_token_metadata(mint: str):
     """Fetch token metadata using Helius DAS API"""
