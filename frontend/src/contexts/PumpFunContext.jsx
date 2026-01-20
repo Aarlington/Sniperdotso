@@ -247,7 +247,7 @@ export const PumpFunProvider = ({ children }) => {
             change1h: '0%',
             isGreen: trade.isBuy,
             progress: Math.min(Math.max(progress, 0), 100),
-            priceHistory: [{ time: trade.timestamp, price: priceInSol, priceUsd: priceInUsd, volume: tradeVolumeUsd }],
+            priceHistory: [{ time: trade.timestamp, price: priceInSol }],
             trades: [trade],
             lastPrice: priceInSol,
             lastPriceUsd: priceInUsd,
