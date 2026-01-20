@@ -185,12 +185,11 @@ export const PumpFunProvider = ({ children }) => {
         const updatedHistory = [...existingToken.priceHistory, newPricePoint].slice(-20);
         const { change5m, change1h } = calculatePriceChanges(updatedHistory, now);
         
-        // Simple unique traders tracking (Set is not serializable easily, so we just use length for now or keep separate)
-        // For performance, we'll just increment holder count if it's a new wallet in a simplified way
-        // Or keep the Set in the object but be careful with memory. 
-        // Let's just assume uniqueTraders is a Set.
-        if (!existingToken.uniqueTradersSet) existingToken.uniqueTradersSet = new Set(existingToken.uniqueTraders || []);
-        existingToken.uniqueTradersSet.add(event.user);
+        // Optimize: Don't store set if not needed for logic, just count
+        // For simplicity and memory, let's just increment if it's a new user string
+        // (Removing the Set to save memory, assuming simplistic unique count)
+        const newHolders = existingToken.holders + (existingToken.uniqueTradersSet && !existingToken.uniqueTradersSet.has(event.user) ? 1 : 0);
+        if (existingToken.uniqueTradersSet) existingToken.uniqueTradersSet.add(event.user);
 
         const totalVolumeUsd = (existingToken.totalVolumeUsd || 0) + tradeVolumeUsd;
         const shouldMigrate = progress >= 100 || (isGraduating && !existingToken.isMigrated);
