@@ -192,7 +192,8 @@ export const PumpFunProvider = ({ children }) => {
         if (existingToken.uniqueTradersSet) existingToken.uniqueTradersSet.add(event.user);
 
         const totalVolumeUsd = (existingToken.totalVolumeUsd || 0) + tradeVolumeUsd;
-        const shouldMigrate = progress >= 100 || (isGraduating && !existingToken.isMigrated);
+        // Logic fix: Once migrated, STAY migrated.
+        const shouldMigrate = existingToken.isMigrated || progress >= 100 || trade.realSolReserves > 84;
 
         tokensMapRef.current.set(event.mint, {
             ...existingToken,
