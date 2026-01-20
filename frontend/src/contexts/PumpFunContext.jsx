@@ -217,8 +217,9 @@ export const PumpFunProvider = ({ children }) => {
             isGreen: trade.isBuy,
         });
     } else {
-        // Create new from trade (likely missed create event or existing token)
-        const isMigrated = progress >= 100 || isGraduating;
+        // Create new from trade
+        // Logic fix: Check if this INITIAL trade implies it's already migrated
+        const isMigrated = progress >= 100 || trade.realSolReserves > 84;
         
         const newToken = {
             id: event.mint,
