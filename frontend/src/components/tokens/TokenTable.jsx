@@ -394,6 +394,14 @@ const TokenTable = ({ tokens, title, showProgress = true }) => {
             {/* Links */}
             <div className="flex items-center justify-center gap-4 pt-2 border-t border-[#1f1f23]">
               <a
+                href={`https://gmgn.ai/sol/token/${selectedToken?.fullAddress}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-gray-400 hover:text-white flex items-center gap-1"
+              >
+                <ExternalLink className="w-3 h-3" /> GMGN.ai
+              </a>
+              <a
                 href={`https://pump.fun/coin/${selectedToken?.fullAddress}`}
                 target="_blank"
                 rel="noopener noreferrer"
